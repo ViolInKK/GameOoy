@@ -1,25 +1,29 @@
+use std::rc::Rc;
+
 use crate::cpu::Cpu;
-use crate::memory::Memory;
 use crate::ppu::Ppu;
 use crate::apu::Apu;
 use crate::databus::DataBus;
 
 pub struct GameBoy{
+    cycles: u32,
+
     cpu: Cpu,
-    memory: Box<Memory>,
     ppu: Ppu,
     apu: Apu,
-    databus: DataBus
+    databus: Rc<DataBus>,
 }
 
 impl GameBoy {
     pub fn new() -> GameBoy {
+        let databus: Rc<DataBus> = Rc::new(DataBus::new());
         GameBoy {
-            cpu: Cpu::new(),
-            memory: Box::new(Memory::new()),
+            cycles: 0,
+
+            databus: Rc::clone(&databus),
+            cpu: Cpu::new(Rc::clone(&databus)),
             ppu: Ppu,
             apu: Apu,
-            databus: DataBus,
         }
     }
 
@@ -27,7 +31,11 @@ impl GameBoy {
         //fetch instruction
         //Decode instruction into commands
         //execute command
-        let _instruction_byte = self.databus.read_memory(&self.memory, 0x0000);
+ 
+        let instruction_byte = self.databus.read_memory(self.cpu.pc);
+        self.cpu.exec_instruction(instruction_byte);
+        self.cpu.pc += 1;
+
     }
 }
 

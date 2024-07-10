@@ -1,4 +1,5 @@
-//#![allow(non_snake_case)]
+#![allow(non_snake_case)]
+#![allow(non_camel_case_types)]
 #![allow(clippy::upper_case_acronyms)]
 #![allow(dead_code)]
 
@@ -16,7 +17,16 @@ use sdl2::keyboard::Keycode;
 
 fn main() {
 
-    let gameboy = GameBoy::new();
+    let mut gameboy = GameBoy::new();
+
+    gameboy.exec_cycle();
+    gameboy.exec_cycle();
+    gameboy.exec_cycle();
+    gameboy.exec_cycle();
+    gameboy.exec_cycle();
+    gameboy.exec_cycle();
+
+
 
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
