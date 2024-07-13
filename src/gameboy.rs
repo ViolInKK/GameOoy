@@ -35,7 +35,6 @@ impl GameBoy {
         let instruction_byte = self.databus.read_memory(self.cpu.pc);
         self.cpu.exec_instruction(instruction_byte);
         self.cpu.pc += 1;
-
     }
 }
 

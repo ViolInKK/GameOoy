@@ -18,15 +18,7 @@ use sdl2::keyboard::Keycode;
 fn main() {
 
     let mut gameboy = GameBoy::new();
-
     gameboy.exec_cycle();
-    gameboy.exec_cycle();
-    gameboy.exec_cycle();
-    gameboy.exec_cycle();
-    gameboy.exec_cycle();
-    gameboy.exec_cycle();
-
-
 
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();

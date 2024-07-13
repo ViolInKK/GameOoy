@@ -177,7 +177,7 @@ lazy_static! {
         (0x32,Instruction::new(Mnemonic::LD,  1, 8,  Some([Operand::at_memory_HLD, Operand::A]))),
         (0x33,Instruction::new(Mnemonic::INC, 1, 8,  Some([Operand::SP,            Operand::none]))),
         (0x34,Instruction::new(Mnemonic::INC, 1, 12, Some([Operand::at_memory_HL,  Operand::none]))),
-        (0x35,Instruction::new(Mnemonic::DEC, 1, 12, Some([Operand::at_memory_HL,  Operand::A]))),
+        (0x35,Instruction::new(Mnemonic::DEC, 1, 12, Some([Operand::at_memory_HL,  Operand::none]))),
         (0x36,Instruction::new(Mnemonic::LD,  2, 12, Some([Operand::at_memory_HL,  Operand::n8]))),
         (0x37,Instruction::new(Mnemonic::SCF, 1, 4,  None)),
         (0x38,Instruction::new(Mnemonic::JR,  2, 12, Some([Operand::C,             Operand::e8]))),//todo 12/8
@@ -436,34 +436,1171 @@ impl Cpu {
         let instruction = INSTRUCTIONS_MAP.get(&instruction_byte).unwrap();
         if !matches!(instruction.mnemonic, Mnemonic::PREFIX) {
             match instruction.mnemonic {
-                Mnemonic::NOP => {
-                    println!("NOP");
 
+                Mnemonic::ADC => {
+                    match instruction.operands.as_ref().unwrap() {
+
+                        [Operand::A, Operand::B] => {
+                            println!("ADC A, B");
+                        }
+
+                        [Operand::A, Operand::C] => {
+                            println!("ADC A, C");
+                        }
+
+                        [Operand::A, Operand::D] => {
+                            println!("ADC A, D");
+                        }
+
+                        [Operand::A, Operand::E] => {
+                            println!("ADC A, E");
+                        }
+
+                        [Operand::A, Operand::H] => {
+                            println!("ADC A, H");
+                        }
+
+                        [Operand::A, Operand::L] => {
+                            println!("ADC A, L");
+                        }
+
+                        [Operand::A, Operand::at_memory_HL] => {
+                            println!("ADC A, at_memory_HL");
+                        }
+
+                        [Operand::A, Operand::A] => {
+                            println!("ADC A, A");
+                        }
+
+                        [Operand::A, Operand::n8] => {
+                            println!("ADC A, n8");
+                        }
+
+                        _ => {
+                            eprintln!("Non existing ADC instruction.");
+                        }
+                    }
+                }
+
+                Mnemonic::ADD => {
+                    match instruction.operands.as_ref().unwrap() {
+
+                        [Operand::HL, Operand::BC] => {
+                            println!("ADD HL, BC");
+                        }
+
+                        [Operand::HL, Operand::DE] => {
+                            println!("ADD HL, DE");
+                        }
+
+                        [Operand::HL, Operand::HL] => {
+                            println!("ADD HL, HL");
+                        }
+
+                        [Operand::HL, Operand::SP] => {
+                            println!("ADD HL, SP");
+                        }
+
+                        [Operand::A, Operand::B] => {
+                            println!("ADD A, B");
+                        }
+
+                        [Operand::A, Operand::C] => {
+                            println!("ADD A, C");
+                        }
+
+                        [Operand::A, Operand::D] => {
+                            println!("ADD A, D");
+                        }
+
+                        [Operand::A, Operand::E] => {
+                            println!("ADD A, E");
+                        }
+
+                        [Operand::A, Operand::H] => {
+                            println!("ADD A, H");
+                        }
+
+                        [Operand::A, Operand::L] => {
+                            println!("ADD A, L");
+                        }
+
+                        [Operand::A, Operand::at_memory_HL] => {
+                            println!("ADD A, at_memory_HL");
+                        }
+
+                        [Operand::A, Operand::A] => {
+                            println!("ADD A, A");
+                        }
+
+                        [Operand::A, Operand::n8] => {
+                            println!("ADD A, n8");
+                        }
+
+                        [Operand::SP, Operand::e8] => {
+                            println!("ADD SP, e8");
+                        }
+
+                        _ => {
+                            eprintln!("Non existing ADD instruction.");
+                        }
+
+                    }
+                }
+
+                Mnemonic::AND => {
+                    match instruction.operands.as_ref().unwrap() {
+
+                        [Operand::A, Operand::B] => {
+                            println!("AND A, B");
+                        }
+
+                        [Operand::A, Operand::C] => {
+                            println!("AND A, C");
+                        }
+
+                        [Operand::A, Operand::D] => {
+                            println!("AND A, D");
+                        }
+
+                        [Operand::A, Operand::E] => {
+                            println!("AND A, E");
+                        }
+
+                        [Operand::A, Operand::H] => {
+                            println!("AND A, H");
+                        }
+
+                        [Operand::A, Operand::L] => {
+                            println!("AND A, L");
+                        }
+
+                        [Operand::A, Operand::at_memory_HL] => {
+                            println!("AND A, at_memory_HL");
+                        }
+
+                        [Operand::A, Operand::A] => {
+                            println!("AND A, A");
+                        }
+
+                        [Operand::A, Operand::n8] => {
+                            println!("AND A, n8");
+                        }
+
+                        _ => {
+                            eprintln!("Non existing AND instruction.");
+                        }
+                    }
+                }
+
+                Mnemonic::BIT => {
+                }
+
+                Mnemonic::CALL => {
+                    match instruction.operands.as_ref().unwrap() {
+
+                        [Operand::NZ, Operand::a16] => {
+                            println!("CALL NZ, a16");
+                        }
+
+                        [Operand::Z, Operand::a16] => {
+                            println!("CALL Z, a16");
+                        }
+
+                        [Operand::a16, Operand::none] => {
+                            println!("CALL a16");
+                        }
+
+                        [Operand::NCY, Operand::a16] => {
+                            println!("CALL NCY, a16");
+                        }
+
+                        [Operand::C, Operand::a16] => {
+                            println!("CALL C, a16");
+                        }
+
+                        _ => {
+                            eprintln!("Non existing CALL instruction.");
+                        }
+
+
+                    }
+                }
+
+                Mnemonic::CCF => {
+                    println!("CCF");
+                }
+
+                Mnemonic::CP => {
+                    match instruction.operands.as_ref().unwrap() {
+
+                        [Operand::A, Operand::B] => {
+                            println!("CP A, B");
+                        }
+
+                        [Operand::A, Operand::C] => {
+                            println!("CP A, C");
+                        }
+
+                        [Operand::A, Operand::D] => {
+                            println!("CP A, D");
+                        }
+
+                        [Operand::A, Operand::E] => {
+                            println!("CP A, E");
+                        }
+
+                        [Operand::A, Operand::H] => {
+                            println!("CP A, H");
+                        }
+
+                        [Operand::A, Operand::L] => {
+                            println!("CP A, L");
+                        }
+
+                        [Operand::A, Operand::at_memory_HL] => {
+                            println!("CP A, at_memory_HL");
+                        }
+
+                        [Operand::A, Operand::A] => {
+                            println!("CP A, A");
+                        }
+
+                        [Operand::A, Operand::n8] => {
+                            println!("CP A, n8");
+                        }
+
+                        _ => {
+                            eprintln!("Non existing CP instruction.");
+                        }
+                    }
+                }
+
+                Mnemonic::CPL => {
+                    println!("CPL");
+                }
+
+                Mnemonic::DAA => {
+                    println!("DAA");
+                }
+
+                Mnemonic::DEC => {
+                    match instruction.operands.as_ref().unwrap() {
+
+                        [Operand::B, Operand::none] => {
+                            println!("DEC B");
+                        }
+
+                        [Operand::BC, Operand::none] => {
+                            println!("DEC BC");
+                        }
+
+                        [Operand::C, Operand::none] => {
+                            println!("DEC C");
+                        }
+
+                        [Operand::D, Operand::none] => {
+                            println!("DEC D");
+                        }
+
+                        [Operand::DE, Operand::none] => {
+                            println!("DEC DE");
+                        }
+
+                        [Operand::E, Operand::none] => {
+                            println!("DEC E");
+                        }
+
+                        [Operand::H, Operand::none] => {
+                            println!("DEC H");
+                        }
+
+                        [Operand::HL, Operand::none] => {
+                            println!("DEC HL");
+                        }
+
+                        [Operand::L, Operand::none] => {
+                            println!("DEC L");
+                        }
+
+                        [Operand::at_memory_HL, Operand::none] => {
+                            println!("DEC at_memory_HL");
+                        }
+
+                        [Operand::SP, Operand::none] => {
+                            println!("DEC SP");
+                        }
+
+                        [Operand::A, Operand::none] => {
+                            println!("DEC A");
+                        }
+
+                        _ => {
+                            eprintln!("Non existing DEC instruction.");
+                        }
+                    }
+                }
+
+                Mnemonic::DI => {
+                    println!("DI");
+                }
+
+                Mnemonic::EI => {
+                    println!("EI");
+                }
+
+                Mnemonic::HALT => {
+                    println!("HALT");
+                }
+
+                Mnemonic::INC => {
+                    match instruction.operands.as_ref().unwrap() {
+
+                        [Operand::BC, Operand::none] => {
+                            println!("INC BC");
+                        }
+
+                        [Operand::B, Operand::none] => {
+                            println!("INC B");
+                        }
+
+                        [Operand::C, Operand::none] => {
+                            println!("INC C");
+                        }
+
+                        [Operand::DE, Operand::none] => {
+                            println!("INC DE");
+                        }
+
+                        [Operand::D, Operand::none] => {
+                            println!("INC D");
+                        }
+
+                        [Operand::E, Operand::none] => {
+                            println!("INC E");
+                        }
+
+                        [Operand::HL, Operand::none] => {
+                            println!("INC HL");
+                        }
+
+                        [Operand::H, Operand::none] => {
+                            println!("INC H");
+                        }
+
+                        [Operand::L, Operand::none] => {
+                            println!("INC L");
+                        }
+
+                        [Operand::SP, Operand::none] => {
+                            println!("INC SP");
+                        }
+
+                        [Operand::at_memory_HL, Operand::none] => {
+                            println!("INC at_memory_HL");
+                        }
+
+                        [Operand::A, Operand::none] => {
+                            println!("INC A");
+                        }
+
+                        _ => {
+                            eprintln!("Non existing INC instruction.");
+                        }
+                    }
+                }
+
+                Mnemonic::JP => {
+                    match instruction.operands.as_ref().unwrap() {
+
+                        [Operand::NZ, Operand::a16] => {
+                            println!("JP NZ, a16");
+                        }
+
+                        [Operand::a16, Operand::none] => {
+                            println!("JP a16");
+                        }
+
+                        [Operand::Z, Operand::a16] => {
+                            println!("JP Z, a16");
+                        }
+
+                        [Operand::NCY, Operand::a16] => {
+                            println!("JP NCY, a16");
+                        }
+
+                        [Operand::C, Operand::a16] => {
+                            println!("JP C, a16");
+                        }
+
+                        [Operand::HL, Operand::none] => {
+                            println!("JP HL");
+                        }
+
+                        _ => {
+                            eprintln!("Non existing JP instruction.");
+                        }
+
+                    }
+                }
+
+                Mnemonic::JR => {
+                    match instruction.operands.as_ref().unwrap() {
+
+                        [Operand::e8, Operand::none] => {
+                            println!("JR e8");
+                        }
+
+                        [Operand::NZ, Operand::e8] => {
+                            println!("JR NZ, e8");
+                        }
+
+                        [Operand::Z, Operand::e8] => {
+                            println!("JR Z, e8");
+                        }
+
+                        [Operand::NCY, Operand::e8] => {
+                            println!("JR NCY, e8");
+                        }
+
+                        [Operand::C, Operand::e8] => {
+                            println!("JR C, e8");
+                        }
+
+                        _ => {
+                            eprintln!("Non existing JR instruction.");
+                        }
+                    }
                 }
 
                 Mnemonic::LD => {
                     match instruction.operands.as_ref().unwrap() {
+                        [Operand::BC, Operand::n16] => {
+                            println!("LD BC n16");
+                        }
+
+                        [Operand::at_memory_BC, Operand::A] => {
+                            println!("LD AT_MEMORY_BC A");
+                        }
+
+                        [Operand::B, Operand::n8] => {
+                            println!("LD B n8");
+                        }
+
+                        [Operand::at_memory_a16, Operand::SP] => {
+                            println!("LD [a16] SP");
+                        }
+
+                        [Operand::A, Operand::at_memory_BC] => {
+                            println!("LD A, [BC]");
+                        }
+
+                        [Operand::C, Operand::n8] => {
+                            println!("LD C, n8");
+                        }
+
+                        [Operand::DE, Operand::n16] => {
+                            println!("LD DE, n16");
+                        }
+
+                        [Operand::at_memory_DE, Operand::A] => {
+                            println!("LD at_memory_DE, A");
+                        }
+
+                        [Operand::D, Operand::n8] => {
+                            println!("LD D, n8");
+                        }
+
+                        [Operand::A, Operand::at_memory_DE] => {
+                            println!("LD A, at_memory_DE");
+                        }
+
+                        [Operand::E, Operand::n8] => {
+                            println!("LD E, n8");
+                        }
+
+                        [Operand::HL, Operand::n16] => {
+                            println!("LD HL, n16");
+                        }
+
+                        [Operand::at_memory_HLI, Operand::A] => {
+                            println!("LD at_memory_HLI, A");
+                        }
+
+                        [Operand::H, Operand::n8] => {
+                            println!("LD H, n8");
+                        }
+
+                        [Operand::A, Operand::at_memory_HLI] => {
+                            println!("LD A, at_memory_HLI");
+                        }
+
+                        [Operand::L, Operand::n8] => {
+                            println!("LD L, n8");
+                        }
+
+                        [Operand::SP, Operand::n16] => {
+                            println!("LD SP, n16");
+                        }
+
+                        [Operand::at_memory_HLD, Operand::A] => {
+                            println!("LD at_memory_HLD, A");
+                        }
+
+                        [Operand::at_memory_HL, Operand::n8] => {
+                            println!("LD at_memory_HL, n8");
+                        }
+
+                        [Operand::A, Operand::at_memory_HLD] => {
+                            println!("LD A, at_memory_HLD");
+                        }
+
+                        [Operand::A, Operand::n8] => {
+                            println!("LD A, n8");
+                        }
 
                         [Operand::B, Operand::B] => {
-                            println!("LD OPERAND B B");
+                            println!("LD B, B");
+                        }
+
+                        [Operand::B, Operand::C] => {
+                            println!("LD B, C");
+                        }
+
+                        [Operand::B, Operand::D] => {
+                            println!("LD B, D");
+                        }
+
+                        [Operand::B, Operand::E] => {
+                            println!("LD B, E");
+                        }
+
+                        [Operand::B, Operand::H] => {
+                            println!("LD B, H");
+                        }
+
+                        [Operand::B, Operand::L] => {
+                            println!("LD B, L");
+                        }
+
+                        [Operand::B, Operand::at_memory_HL] => {
+                            println!("LD B, at_memory_HL");
+                        }
+
+                        [Operand::B, Operand::A] => {
+                            println!("LD B, A");
+                        }
+
+                        [Operand::C, Operand::B] => {
+                            println!("LD C, B");
+                        }
+
+                        [Operand::C, Operand::C] => {
+                            println!("LD C, C");
+                        }
+
+                        [Operand::C, Operand::D] => {
+                            println!("LD C, D");
+                        }
+
+                        [Operand::C, Operand::E] => {
+                            println!("LD C, E");
+                        }
+
+                        [Operand::C, Operand::H] => {
+                            println!("LD C, H");
+                        }
+
+                        [Operand::C, Operand::L] => {
+                            println!("LD C, L");
+                        }
+
+                        [Operand::C, Operand::at_memory_HL] => {
+                            println!("LD C, at_memory_HL");
+                        }
+
+                        [Operand::C, Operand::A] => {
+                            println!("LD C, A");
+                        }
+
+                        [Operand::D, Operand::B] => {
+                            println!("LD D, B");
+                        }
+
+                        [Operand::D, Operand::C] => {
+                            println!("LD D, C");
+                        }
+
+                        [Operand::D, Operand::D] => {
+                            println!("LD D, D");
+                        }
+
+                        [Operand::D, Operand::E] => {
+                            println!("LD D, E");
+                        }
+
+                        [Operand::D, Operand::H] => {
+                            println!("LD D, H");
+                        }
+
+                        [Operand::D, Operand::L] => {
+                            println!("LD D, L");
+                        }
+
+                        [Operand::D, Operand::at_memory_HL] => {
+                            println!("LD D, at_memory_HL");
+                        }
+
+                        [Operand::D, Operand::A] => {
+                            println!("LD D, A");
+                        }
+
+                        [Operand::E, Operand::B] => {
+                            println!("LD E, B");
+                        }
+
+                        [Operand::E, Operand::C] => {
+                            println!("LD E, C");
+                        }
+
+                        [Operand::E, Operand::D] => {
+                            println!("LD E, D");
+                        }
+
+                        [Operand::E, Operand::E] => {
+                            println!("LD E, E");
+                        }
+
+                        [Operand::E, Operand::H] => {
+                            println!("LD E, H");
+                        }
+
+                        [Operand::E, Operand::L] => {
+                            println!("LD E, L");
+                        }
+
+                        [Operand::E, Operand::at_memory_HL] => {
+                            println!("LD E, at_memory_HL");
+                        }
+
+                        [Operand::E, Operand::A] => {
+                            println!("LD E, A");
+                        }
+
+                        [Operand::H, Operand::B] => {
+                            println!("LD H, B");
+                        }
+
+                        [Operand::H, Operand::C] => {
+                            println!("LD H, C");
+                        }
+
+                        [Operand::H, Operand::D] => {
+                            println!("LD H, D");
+                        }
+
+                        [Operand::H, Operand::E] => {
+                            println!("LD H, E");
+                        }
+
+                        [Operand::H, Operand::H] => {
+                            println!("LD H, H");
+                        }
+
+                        [Operand::H, Operand::L] => {
+                            println!("LD H, L");
+                        }
+
+                        [Operand::H, Operand::at_memory_HL] => {
+                            println!("LD H, at_memory_HL");
+                        }
+
+                        [Operand::H, Operand::A] => {
+                            println!("LD H, A");
+                        }
+
+                        [Operand::L, Operand::B] => {
+                            println!("LD L, B");
+                        }
+
+                        [Operand::L, Operand::C] => {
+                            println!("LD L, C");
+                        }
+
+                        [Operand::L, Operand::D] => {
+                            println!("LD L, D");
+                        }
+
+                        [Operand::L, Operand::E] => {
+                            println!("LD L, E");
+                        }
+
+                        [Operand::L, Operand::H] => {
+                            println!("LD L, H");
+                        }
+
+                        [Operand::L, Operand::L] => {
+                            println!("LD L, L");
+                        }
+
+                        [Operand::L, Operand::at_memory_HL] => {
+                            println!("LD L, at_memory_HL");
+                        }
+
+                        [Operand::L, Operand::A] => {
+                            println!("LD L, A");
+                        }
+
+                        [Operand::at_memory_HL, Operand::B] => {
+                            println!("LD at_memory_HL, B");
+                        }
+
+                        [Operand::at_memory_HL, Operand::C] => {
+                            println!("LD at_memory_HL, C");
+                        }
+
+                        [Operand::at_memory_HL, Operand::D] => {
+                            println!("LD at_memory_HL, D");
+                        }
+
+                        [Operand::at_memory_HL, Operand::E] => {
+                            println!("LD at_memory_HL, E");
+                        }
+
+                        [Operand::at_memory_HL, Operand::H] => {
+                            println!("LD at_memory_HL, H");
+                        }
+
+                        [Operand::at_memory_HL, Operand::L] => {
+                            println!("LD at_memory_HL, L");
+                        }
+
+                        [Operand::at_memory_HL, Operand::A] => {
+                            println!("LD at_memory_HL, A");
+                        }
+
+                        [Operand::A, Operand::B] => {
+                            println!("LD A, B");
+                        }
+
+                        [Operand::A, Operand::C] => {
+                            println!("LD A, C");
+                        }
+
+                        [Operand::A, Operand::D] => {
+                            println!("LD A, D");
+                        }
+
+                        [Operand::A, Operand::E] => {
+                            println!("LD A, E");
+                        }
+
+                        [Operand::A, Operand::H] => {
+                            println!("LD A, H");
+                        }
+
+                        [Operand::A, Operand::L] => {
+                            println!("LD A, L");
+                        }
+
+                        [Operand::A, Operand::at_memory_HL] => {
+                            println!("LD A, at_memory_HL");
                         }
 
                         [Operand::A, Operand::A] => {
-                            println!("LD OPERAND A A");
+                            println!("LD A, A");
                         }
 
-                        [Operand::BC, Operand::n16] => {
-                            println!("LD OPERAND BC n16");
+                        [Operand::at_memory_C, Operand::A] => {
+                            println!("LD at_memory_C, A");
+                        }
+
+                        [Operand::at_memory_a16, Operand::A] => {
+                            println!("LD at_memory_a16, A");
+                        }
+
+                        [Operand::A, Operand::at_memory_C] => {
+                            println!("LD A, at_memory_C");
+                        }
+
+                        [Operand::HL, Operand::SP_plus_e8] => {
+                            println!("LD HL, SP + e8");
+                        }
+
+                        [Operand::SP, Operand::HL] => {
+                            println!("LD SP, HL");
+                        }
+
+                        [Operand::A, Operand::at_memory_a16] => {
+                            println!("LD A, at_memory_a16");
                         }
 
                         _ => {
-                            eprintln!("non existing instruction.");
+                            eprintln!("Non existing LD instruction.");
+                        }
+                    }
+                }
+
+                Mnemonic::LDH => {
+                    match instruction.operands.as_ref().unwrap() {
+
+                        [Operand::at_memory_a8, Operand::A] => {
+                            println!("LDH at_memory_a8, A");
+                        }
+
+                        [Operand::A, Operand::at_memory_a8] => {
+                            println!("LDH A, at_memory_a8");
+                        }
+
+                        _ => {
+                            eprintln!("Non existing LDH instruction.");
+                        }
+
+                    }
+
+                }
+
+                Mnemonic::NOP => {
+                    println!("NOP");
+                }
+
+                Mnemonic::OR => {
+                    match instruction.operands.as_ref().unwrap() {
+
+                        [Operand::A, Operand::B] => {
+                            println!("OR A, B");
+                        }
+
+                        [Operand::A, Operand::C] => {
+                            println!("OR A, C");
+                        }
+
+                        [Operand::A, Operand::D] => {
+                            println!("OR A, D");
+                        }
+
+                        [Operand::A, Operand::E] => {
+                            println!("OR A, E");
+                        }
+
+                        [Operand::A, Operand::H] => {
+                            println!("OR A, H");
+                        }
+
+                        [Operand::A, Operand::L] => {
+                            println!("OR A, L");
+                        }
+
+                        [Operand::A, Operand::at_memory_HL] => {
+                            println!("OR A, at_memory_HL");
+                        }
+
+                        [Operand::A, Operand::A] => {
+                            println!("OR A, A");
+                        }
+
+                        [Operand::A, Operand::n8] => {
+                            println!("OR A, n8");
+                        }
+
+                        _ => {
+                            eprintln!("Non existing OR instruction.");
+                        }
+                    }
+                }
+
+                Mnemonic::POP => {
+                    match instruction.operands.as_ref().unwrap() {
+
+                        [Operand::BC, Operand::none] => {
+                            println!("POP BC");
+                        }
+
+                        [Operand::DE, Operand::none] => {
+                            println!("POP DE");
+                        }
+
+                        [Operand::HL, Operand::none] => {
+                            println!("POP HL");
+                        }
+
+                        [Operand::AF, Operand::none] => {
+                            println!("POP AF");
+                        }
+
+                        _ => {
+                            eprintln!("Non existing POP instruction.");
+                        }
+                    }
+                }
+
+                Mnemonic::PREFIX => {
+                    println!("PREFIX");
+                }
+
+                Mnemonic::PUSH => {
+                    match instruction.operands.as_ref().unwrap() {
+
+                        [Operand::BC, Operand::none] => {
+                            println!("PUSH BC");
+                        }
+
+                        [Operand::DE, Operand::none] => {
+                            println!("PUSH DE");
+                        }
+
+                        [Operand::HL, Operand::none] => {
+                            println!("PUSH HL");
+                        }
+
+                        [Operand::AF, Operand::none] => {
+                            println!("PUSH AF");
+                        }
+
+                        _ => {
+                            eprintln!("Non existing PUSH instruction.");
+                        }
+
+                    }
+                }
+
+                Mnemonic::RET => {
+                    if instruction.operands.is_none() {
+                        println!("RET");
+                    }
+                    else {
+                        match instruction.operands.as_ref().unwrap() {
+
+                            [Operand::NZ, Operand::none] => {
+                                println!("RET NZ");
+                            }
+
+                            [Operand::Z, Operand::none] => {
+                                println!("RET Z");
+                            }
+
+                            [Operand::NCY, Operand::none] => {
+                                println!("RET NCY");
+                            }
+
+                            [Operand::C, Operand::none] => {
+                                println!("RET C");
+                            }
+
+                            _ => {
+                                eprintln!("Non existing RET instruction.");
+                            }
+                        }
+                    }
+                }
+
+                Mnemonic::RETI => {
+                    println!("RETI");
+                }
+
+                Mnemonic::RLA => {
+                    println!("RLA");
+                }
+
+                Mnemonic::RLCA => {
+                    println!("RLCA");
+                }
+
+                Mnemonic::RRA => {
+                    println!("RRA");
+                }
+
+                Mnemonic::RRCA => {
+                    println!("RRCA");
+                }
+
+                Mnemonic::RST => {
+                    match instruction.operands.as_ref().unwrap() {
+
+                        [Operand::vec(0x00), Operand::none] => {
+                            println!("RST $00");
+                        }
+
+                        [Operand::vec(0x08), Operand::none] => {
+                            println!("RST $08");
+                        }
+
+                        [Operand::vec(0x10), Operand::none] => {
+                            println!("RST $10");
+                        }
+
+                        [Operand::vec(0x18), Operand::none] => {
+                            println!("RST $18");
+                        }
+
+                        [Operand::vec(0x20), Operand::none] => {
+                            println!("RST $20");
+                        }
+
+                        [Operand::vec(0x28), Operand::none] => {
+                            println!("RST $28");
+                        }
+
+                        [Operand::vec(0x30), Operand::none] => {
+                            println!("RST $30");
+                        }
+
+                        [Operand::vec(0x38), Operand::none] => {
+                            println!("RST $38");
+                        }
+
+                        _ => {
+                            eprintln!("Non existing RST instruction.");
+                        }
+
+                    }
+                }
+
+                Mnemonic::SBC => {
+                    match instruction.operands.as_ref().unwrap() {
+
+                        [Operand::A, Operand::B] => {
+                            println!("SBC A, B");
+                        }
+
+                        [Operand::A, Operand::C] => {
+                            println!("SBC A, C");
+                        }
+
+                        [Operand::A, Operand::D] => {
+                            println!("SBC A, D");
+                        }
+
+                        [Operand::A, Operand::E] => {
+                            println!("SBC A, E");
+                        }
+
+                        [Operand::A, Operand::H] => {
+                            println!("SBC A, H");
+                        }
+
+                        [Operand::A, Operand::L] => {
+                            println!("SBC A, L");
+                        }
+
+                        [Operand::A, Operand::at_memory_HL] => {
+                            println!("SBC A, at_memory_HL");
+                        }
+
+                        [Operand::A, Operand::A] => {
+                            println!("SBC A, A");
+                        }
+
+                        [Operand::A, Operand::n8] => {
+                            println!("SBC A, n8");
+                        }
+
+                        _ => {
+                            eprintln!("Non existing SBC instruction.");
+                        }
+                    }
+                }
+
+                Mnemonic::SCF => {
+                    println!("SCF");
+                }
+
+                Mnemonic::STOP => {
+                    println!("STOP");
+                }
+
+                Mnemonic::SUB => {
+                    match instruction.operands.as_ref().unwrap() {
+
+                        [Operand::A, Operand::B] => {
+                            println!("SUB A, B");
+                        }
+
+                        [Operand::A, Operand::C] => {
+                            println!("SUB A, C");
+                        }
+
+                        [Operand::A, Operand::D] => {
+                            println!("SUB A, D");
+                        }
+
+                        [Operand::A, Operand::E] => {
+                            println!("SUB A, E");
+                        }
+
+                        [Operand::A, Operand::H] => {
+                            println!("SUB A, H");
+                        }
+
+                        [Operand::A, Operand::L] => {
+                            println!("SUB A, L");
+                        }
+
+                        [Operand::A, Operand::at_memory_HL] => {
+                            println!("SUB A, at_memory_HL");
+                        }
+
+                        [Operand::A, Operand::A] => {
+                            println!("SUB A, A");
+                        }
+
+                        [Operand::A, Operand::n8] => {
+                            println!("SUB A, n8");
+                        }
+
+                        _ => {
+                            eprintln!("Non existing SUB instruction.");
+                        }
+                    }
+                }
+
+                Mnemonic::XOR => {
+                    match instruction.operands.as_ref().unwrap() {
+
+                        [Operand::A, Operand::B] => {
+                            println!("XOR A, B");
+                        }
+
+                        [Operand::A, Operand::C] => {
+                            println!("XOR A, C");
+                        }
+
+                        [Operand::A, Operand::D] => {
+                            println!("XOR A, D");
+                        }
+
+                        [Operand::A, Operand::E] => {
+                            println!("XOR A, E");
+                        }
+
+                        [Operand::A, Operand::H] => {
+                            println!("XOR A, H");
+                        }
+
+                        [Operand::A, Operand::L] => {
+                            println!("XOR A, L");
+                        }
+
+                        [Operand::A, Operand::at_memory_HL] => {
+                            println!("XOR A, at_memory_HL");
+                        }
+
+                        [Operand::A, Operand::A] => {
+                            println!("XOR A, A");
+                        }
+
+                        [Operand::A, Operand::n8] => {
+                            println!("XOR A, n8");
+                        }
+
+                        _ => {
+                            eprintln!("Non existing XOR instruction.");
                         }
                     }
                 }
 
                 _ => {
-                    eprintln!("non existing instruction.");
+                    eprintln!("Non existing Instruction.");
                 }
             }
         }
