@@ -436,7 +436,6 @@ impl Cpu {
         let instruction = INSTRUCTIONS_MAP.get(&instruction_byte).unwrap();
         if !matches!(instruction.mnemonic, Mnemonic::PREFIX) {
             match instruction.mnemonic {
-
                 Mnemonic::ADC => {
                     match instruction.operands.as_ref().unwrap() {
 
@@ -591,9 +590,6 @@ impl Cpu {
                             eprintln!("Non existing AND instruction.");
                         }
                     }
-                }
-
-                Mnemonic::BIT => {
                 }
 
                 Mnemonic::CALL => {
