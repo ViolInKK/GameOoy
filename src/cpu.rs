@@ -1,393 +1,10 @@
-use std::{collections::HashMap, rc::Rc};
-use lazy_static::lazy_static;
+use std::{cell::RefCell, rc::Rc};
+use crate::cpu_instructions::{Mnemonic, Operand, INSTRUCTIONS_MAP};
 
 use crate::databus::DataBus;
 
-pub enum Mnemonic {
-    ADC,
-    ADD,
-    AND,
-    BIT,
-    CALL,
-    CCF,
-    CP,
-    CPL,
-    DAA,
-    DEC,
-    DI,
-    EI,
-    HALT,
-    INC,
-    JP,
-    JR,
-    LD,
-    LDH,
-    NOP,
-    OR,
-    POP,
-    PREFIX,
-    PUSH,
-    RES,
-    RET,
-    RETI,
-    RL,
-    RLA,
-    RLC,
-    RLCA,
-    RR,
-    RRA,
-    RRC,
-    RRCA,
-    RST,
-    SBC,
-    SCF,
-    SET,
-    SLA,
-    SRA,
-    SRL,
-    STOP,
-    SUB,
-    SWAP,
-    XOR,
-}
-
-pub enum ConditionCode {
-    Z,
-    NZ,
-    C,
-    NC,
-    NCC,
-}
-
-pub enum Operand {
-    A,
-    B,
-    C,
-    D,
-    E,
-    H,
-    L,
-    AF,
-    HL,
-    BC,
-    DE,
-    SP,
-    SP_plus_e8,
-
-    at_memory_C,
-    at_memory_DE,
-    at_memory_BC,
-    at_memory_HL,
-    at_memory_HLI,
-    at_memory_HLD,
-    at_memory_a16,
-    at_memory_a8,
-
-    n8,
-    n16,
-    a16,
-    e8,
-    u3,
-
-    Z,
-    NZ,
-    CY,
-    NCY,
-    NCC,
-
-    vec(u8),
-
-    none,
-}
-
-pub struct Instruction {
-    mnemonic: Mnemonic,
-    pub length: u8,
-    cycles: u8,
-    operands: Option<[Operand; 2]>,
-}
-
-impl Instruction {
-   pub fn new(mnemonic: Mnemonic, length: u8, cycles: u8, operands: Option<[Operand; 2]>) -> Instruction {
-        Instruction{
-            mnemonic,
-            length,
-            cycles,
-            operands,
-        }
-    }
-}
-
-const PREFIX: u8 = 0xCB;
-lazy_static! {
-    static ref INSTRUCTIONS_MAP: HashMap<u8, Instruction> = HashMap::from([
-        (0x00,Instruction::new(Mnemonic::NOP, 1, 4,  None)),
-        (0x01,Instruction::new(Mnemonic::LD,  3, 12, Some([Operand::BC,            Operand::n16]))),
-        (0x02,Instruction::new(Mnemonic::LD,  1, 8,  Some([Operand::at_memory_BC,  Operand::A]))),
-        (0x03,Instruction::new(Mnemonic::INC, 1, 8,  Some([Operand::BC,            Operand::none]))),
-        (0x04,Instruction::new(Mnemonic::INC, 1, 4,  Some([Operand::B,             Operand::none]))),
-        (0x05,Instruction::new(Mnemonic::DEC, 1, 4,  Some([Operand::B,             Operand::none]))),
-        (0x06,Instruction::new(Mnemonic::LD,  2, 8,  Some([Operand::B,             Operand::n8]))),
-        (0x07,Instruction::new(Mnemonic::RLCA,1, 4,  None)),
-        (0x08,Instruction::new(Mnemonic::LD,  3, 20, Some([Operand::at_memory_a16, Operand::SP]))),
-        (0x09,Instruction::new(Mnemonic::ADD, 1, 8,  Some([Operand::HL,            Operand::BC]))),
-        (0x0A,Instruction::new(Mnemonic::LD,  1, 8,  Some([Operand::A,             Operand::at_memory_BC]))),
-        (0x0B,Instruction::new(Mnemonic::DEC, 1, 8,  Some([Operand::BC,            Operand::none]))),
-        (0x0C,Instruction::new(Mnemonic::INC, 1, 4,  Some([Operand::C,             Operand::none]))),
-        (0x0D,Instruction::new(Mnemonic::DEC, 1, 4,  Some([Operand::C,             Operand::none]))),
-        (0x0E,Instruction::new(Mnemonic::LD,  2, 8,  Some([Operand::C,             Operand::n8]))),
-        (0x0F,Instruction::new(Mnemonic::RRCA,1, 4,  None)),
-
-        (0x10,Instruction::new(Mnemonic::STOP,2, 4,  Some([Operand::n8,            Operand::none]))),
-        (0x11,Instruction::new(Mnemonic::LD,  3, 12, Some([Operand::DE,            Operand::n16]))),
-        (0x12,Instruction::new(Mnemonic::LD,  1, 8,  Some([Operand::at_memory_DE,  Operand::A]))),
-        (0x13,Instruction::new(Mnemonic::INC, 1, 8,  Some([Operand::DE,            Operand::none]))),
-        (0x14,Instruction::new(Mnemonic::INC, 1, 4,  Some([Operand::D,             Operand::none]))),
-        (0x15,Instruction::new(Mnemonic::DEC, 1, 4,  Some([Operand::D,             Operand::none]))),
-        (0x16,Instruction::new(Mnemonic::LD,  2, 8,  Some([Operand::D,             Operand::n8]))),
-        (0x17,Instruction::new(Mnemonic::RLA, 1, 4,  None)),
-        (0x18,Instruction::new(Mnemonic::JR,  2, 12, Some([Operand::e8,            Operand::none]))),
-        (0x19,Instruction::new(Mnemonic::ADD, 1, 8,  Some([Operand::HL,            Operand::DE]))),
-        (0x1A,Instruction::new(Mnemonic::LD,  1, 8,  Some([Operand::A,             Operand::at_memory_DE]))),
-        (0x1B,Instruction::new(Mnemonic::DEC, 1, 8,  Some([Operand::DE,            Operand::none]))),
-        (0x1C,Instruction::new(Mnemonic::INC, 1, 4,  Some([Operand::E,             Operand::none]))),
-        (0x1D,Instruction::new(Mnemonic::DEC, 1, 4,  Some([Operand::E,             Operand::none]))),
-        (0x1E,Instruction::new(Mnemonic::LD,  2, 8,  Some([Operand::E,             Operand::n8]))),
-        (0x1F,Instruction::new(Mnemonic::RRA, 1, 4,  None)),
-
-        (0x20,Instruction::new(Mnemonic::JR,  2, 12, Some([Operand::NZ,            Operand::e8]))), //todo 12/8
-        (0x21,Instruction::new(Mnemonic::LD,  3, 12, Some([Operand::HL,            Operand::n16]))),
-        (0x22,Instruction::new(Mnemonic::LD,  1, 8,  Some([Operand::at_memory_HLI, Operand::A]))),
-        (0x23,Instruction::new(Mnemonic::INC, 1, 8,  Some([Operand::HL,            Operand::none]))),
-        (0x24,Instruction::new(Mnemonic::INC, 1, 4,  Some([Operand::H,             Operand::none]))),
-        (0x25,Instruction::new(Mnemonic::DEC, 1, 4,  Some([Operand::H,             Operand::none]))),
-        (0x26,Instruction::new(Mnemonic::LD,  2, 8,  Some([Operand::H,             Operand::n8]))),
-        (0x27,Instruction::new(Mnemonic::DAA, 1, 4,  None)),
-        (0x28,Instruction::new(Mnemonic::JR,  2, 12, Some([Operand::Z,             Operand::e8]))), //todo 12/8
-        (0x29,Instruction::new(Mnemonic::ADD, 1, 8,  Some([Operand::HL,            Operand::HL]))),
-        (0x2A,Instruction::new(Mnemonic::LD,  1, 8,  Some([Operand::A,             Operand::at_memory_HLI]))),
-        (0x2B,Instruction::new(Mnemonic::DEC, 1, 8,  Some([Operand::HL,            Operand::none]))),
-        (0x2C,Instruction::new(Mnemonic::INC, 1, 4,  Some([Operand::L,             Operand::none]))),
-        (0x2D,Instruction::new(Mnemonic::DEC, 1, 4,  Some([Operand::L,             Operand::none]))),
-        (0x2E,Instruction::new(Mnemonic::LD,  2, 8,  Some([Operand::L,             Operand::n8]))),
-        (0x2F,Instruction::new(Mnemonic::CPL, 1, 4,  None)),
-
-        (0x30,Instruction::new(Mnemonic::JR,  2, 12, Some([Operand::NCY,           Operand::e8]))),//todo: 12/8
-        (0x31,Instruction::new(Mnemonic::LD,  3, 12, Some([Operand::SP,            Operand::n16]))),
-        (0x32,Instruction::new(Mnemonic::LD,  1, 8,  Some([Operand::at_memory_HLD, Operand::A]))),
-        (0x33,Instruction::new(Mnemonic::INC, 1, 8,  Some([Operand::SP,            Operand::none]))),
-        (0x34,Instruction::new(Mnemonic::INC, 1, 12, Some([Operand::at_memory_HL,  Operand::none]))),
-        (0x35,Instruction::new(Mnemonic::DEC, 1, 12, Some([Operand::at_memory_HL,  Operand::none]))),
-        (0x36,Instruction::new(Mnemonic::LD,  2, 12, Some([Operand::at_memory_HL,  Operand::n8]))),
-        (0x37,Instruction::new(Mnemonic::SCF, 1, 4,  None)),
-        (0x38,Instruction::new(Mnemonic::JR,  2, 12, Some([Operand::C,             Operand::e8]))),//todo 12/8
-        (0x39,Instruction::new(Mnemonic::ADD, 1, 8,  Some([Operand::HL,            Operand::SP]))),
-        (0x3A,Instruction::new(Mnemonic::LD,  1, 8,  Some([Operand::A,             Operand::at_memory_HLD]))),
-        (0x3B,Instruction::new(Mnemonic::DEC, 1, 8,  Some([Operand::SP,            Operand::none]))),
-        (0x3C,Instruction::new(Mnemonic::INC, 1, 4,  Some([Operand::A,             Operand::none]))),
-        (0x3D,Instruction::new(Mnemonic::DEC, 1, 4,  Some([Operand::A,             Operand::none]))),
-        (0x3E,Instruction::new(Mnemonic::LD,  2, 8,  Some([Operand::A,             Operand::n8]))),
-        (0x3F,Instruction::new(Mnemonic::CCF, 1, 4,  None)),
-
-        (0x40,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::B,             Operand::B]))),
-        (0x41,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::B,             Operand::C]))),
-        (0x42,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::B,             Operand::D]))),
-        (0x43,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::B,             Operand::E]))),
-        (0x44,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::B,             Operand::H]))),
-        (0x45,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::B,             Operand::L]))),
-        (0x46,Instruction::new(Mnemonic::LD,  1, 8,  Some([Operand::B,             Operand::at_memory_HL]))),
-        (0x47,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::B,             Operand::A]))),
-        (0x48,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::C,             Operand::B]))),
-        (0x49,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::C,             Operand::C]))),
-        (0x4A,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::C,             Operand::D]))),
-        (0x4B,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::C,             Operand::E]))),
-        (0x4C,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::C,             Operand::H]))),
-        (0x4D,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::C,             Operand::L]))),
-        (0x4E,Instruction::new(Mnemonic::LD,  1, 8,  Some([Operand::C,             Operand::at_memory_HL]))),
-        (0x4F,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::C,             Operand::A]))),
-
-        (0x50,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::D,             Operand::B]))),
-        (0x51,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::D,             Operand::C]))),
-        (0x52,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::D,             Operand::D]))),
-        (0x53,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::D,             Operand::E]))),
-        (0x54,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::D,             Operand::H]))),
-        (0x55,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::D,             Operand::L]))),
-        (0x56,Instruction::new(Mnemonic::LD,  1, 8,  Some([Operand::D,             Operand::at_memory_HL]))),
-        (0x57,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::D,             Operand::A]))),
-        (0x58,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::E,             Operand::B]))),
-        (0x59,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::E,             Operand::C]))),
-        (0x5A,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::E,             Operand::D]))),
-        (0x5B,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::E,             Operand::E]))),
-        (0x5C,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::E,             Operand::H]))),
-        (0x5D,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::E,             Operand::L]))),
-        (0x5E,Instruction::new(Mnemonic::LD,  1, 8,  Some([Operand::E,             Operand::at_memory_HL]))),
-        (0x5F,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::E,             Operand::A]))),
-
-        (0x60,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::H,             Operand::B]))),
-        (0x61,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::H,             Operand::C]))),
-        (0x62,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::H,             Operand::D]))),
-        (0x63,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::H,             Operand::E]))),
-        (0x64,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::H,             Operand::H]))),
-        (0x65,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::H,             Operand::L]))),
-        (0x66,Instruction::new(Mnemonic::LD,  1, 8,  Some([Operand::H,             Operand::at_memory_HL]))),
-        (0x67,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::H,             Operand::A]))),
-        (0x68,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::L,             Operand::B]))),
-        (0x69,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::L,             Operand::C]))),
-        (0x6A,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::L,             Operand::D]))),
-        (0x6B,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::L,             Operand::E]))),
-        (0x6C,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::L,             Operand::H]))),
-        (0x6D,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::L,             Operand::L]))),
-        (0x6E,Instruction::new(Mnemonic::LD,  1, 8,  Some([Operand::L,             Operand::at_memory_HL]))),
-        (0x6F,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::L,             Operand::A]))),
-
-        (0x70,Instruction::new(Mnemonic::LD,  1, 8,  Some([Operand::at_memory_HL,  Operand::B]))),
-        (0x71,Instruction::new(Mnemonic::LD,  1, 8,  Some([Operand::at_memory_HL,  Operand::C]))),
-        (0x72,Instruction::new(Mnemonic::LD,  1, 8,  Some([Operand::at_memory_HL,  Operand::D]))),
-        (0x73,Instruction::new(Mnemonic::LD,  1, 8,  Some([Operand::at_memory_HL,  Operand::E]))),
-        (0x74,Instruction::new(Mnemonic::LD,  1, 8,  Some([Operand::at_memory_HL,  Operand::H]))),
-        (0x75,Instruction::new(Mnemonic::LD,  1, 8,  Some([Operand::at_memory_HL,  Operand::L]))),
-        (0x76,Instruction::new(Mnemonic::HALT,1, 4,  None)),
-        (0x77,Instruction::new(Mnemonic::LD,  1, 8,  Some([Operand::at_memory_HL,  Operand::A]))),
-        (0x78,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::A,             Operand::B]))),
-        (0x79,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::A,             Operand::C]))),
-        (0x7A,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::A,             Operand::D]))),
-        (0x7B,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::A,             Operand::E]))),
-        (0x7C,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::A,             Operand::H]))),
-        (0x7D,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::A,             Operand::L]))),
-        (0x7E,Instruction::new(Mnemonic::LD,  1, 8,  Some([Operand::A,             Operand::at_memory_HL]))),
-        (0x7F,Instruction::new(Mnemonic::LD,  1, 4,  Some([Operand::A,             Operand::A]))),
-
-        (0x80,Instruction::new(Mnemonic::ADD, 1, 4,  Some([Operand::A,             Operand::B]))),
-        (0x81,Instruction::new(Mnemonic::ADD, 1, 4,  Some([Operand::A,             Operand::C]))),
-        (0x82,Instruction::new(Mnemonic::ADD, 1, 4,  Some([Operand::A,             Operand::D]))),
-        (0x83,Instruction::new(Mnemonic::ADD, 1, 4,  Some([Operand::A,             Operand::E]))),
-        (0x84,Instruction::new(Mnemonic::ADD, 1, 4,  Some([Operand::A,             Operand::H]))),
-        (0x85,Instruction::new(Mnemonic::ADD, 1, 4,  Some([Operand::A,             Operand::L]))),
-        (0x86,Instruction::new(Mnemonic::ADD, 1, 8,  Some([Operand::A,             Operand::at_memory_HL]))),
-        (0x87,Instruction::new(Mnemonic::ADD, 1, 4,  Some([Operand::A,             Operand::A]))),
-        (0x88,Instruction::new(Mnemonic::ADC, 1, 4,  Some([Operand::A,             Operand::B]))),
-        (0x89,Instruction::new(Mnemonic::ADC, 1, 4,  Some([Operand::A,             Operand::C]))),
-        (0x8A,Instruction::new(Mnemonic::ADC, 1, 4,  Some([Operand::A,             Operand::D]))),
-        (0x8B,Instruction::new(Mnemonic::ADC, 1, 4,  Some([Operand::A,             Operand::E]))),
-        (0x8C,Instruction::new(Mnemonic::ADC, 1, 4,  Some([Operand::A,             Operand::H]))),
-        (0x8D,Instruction::new(Mnemonic::ADC, 1, 4,  Some([Operand::A,             Operand::L]))),
-        (0x8E,Instruction::new(Mnemonic::ADC, 1, 8,  Some([Operand::A,             Operand::at_memory_HL]))),
-        (0x8F,Instruction::new(Mnemonic::ADC, 1, 4,  Some([Operand::A,             Operand::A]))),
-
-        (0x90,Instruction::new(Mnemonic::SUB, 1, 4,  Some([Operand::A,             Operand::B]))),
-        (0x91,Instruction::new(Mnemonic::SUB, 1, 4,  Some([Operand::A,             Operand::C]))),
-        (0x92,Instruction::new(Mnemonic::SUB, 1, 4,  Some([Operand::A,             Operand::D]))),
-        (0x93,Instruction::new(Mnemonic::SUB, 1, 4,  Some([Operand::A,             Operand::E]))),
-        (0x94,Instruction::new(Mnemonic::SUB, 1, 4,  Some([Operand::A,             Operand::H]))),
-        (0x95,Instruction::new(Mnemonic::SUB, 1, 4,  Some([Operand::A,             Operand::L]))),
-        (0x96,Instruction::new(Mnemonic::SUB, 1, 8,  Some([Operand::A,             Operand::at_memory_HL]))),
-        (0x97,Instruction::new(Mnemonic::SUB, 1, 4,  Some([Operand::A,             Operand::A]))),
-        (0x98,Instruction::new(Mnemonic::SBC, 1, 4,  Some([Operand::A,             Operand::B]))),
-        (0x99,Instruction::new(Mnemonic::SBC, 1, 4,  Some([Operand::A,             Operand::C]))),
-        (0x9A,Instruction::new(Mnemonic::SBC, 1, 4,  Some([Operand::A,             Operand::D]))),
-        (0x9B,Instruction::new(Mnemonic::SBC, 1, 4,  Some([Operand::A,             Operand::E]))),
-        (0x9C,Instruction::new(Mnemonic::SBC, 1, 4,  Some([Operand::A,             Operand::H]))),
-        (0x9D,Instruction::new(Mnemonic::SBC, 1, 4,  Some([Operand::A,             Operand::L]))),
-        (0x9E,Instruction::new(Mnemonic::SBC, 1, 8,  Some([Operand::A,             Operand::at_memory_HL]))),
-        (0x9F,Instruction::new(Mnemonic::SBC, 1, 4,  Some([Operand::A,             Operand::A]))),
-
-        (0xA0,Instruction::new(Mnemonic::AND, 1, 4,  Some([Operand::A,             Operand::B]))),
-        (0xA1,Instruction::new(Mnemonic::AND, 1, 4,  Some([Operand::A,             Operand::C]))),
-        (0xA2,Instruction::new(Mnemonic::AND, 1, 4,  Some([Operand::A,             Operand::D]))),
-        (0xA3,Instruction::new(Mnemonic::AND, 1, 4,  Some([Operand::A,             Operand::E]))),
-        (0xA4,Instruction::new(Mnemonic::AND, 1, 4,  Some([Operand::A,             Operand::H]))),
-        (0xA5,Instruction::new(Mnemonic::AND, 1, 4,  Some([Operand::A,             Operand::L]))),
-        (0xA6,Instruction::new(Mnemonic::AND, 1, 8,  Some([Operand::A,             Operand::at_memory_HL]))),
-        (0xA7,Instruction::new(Mnemonic::AND, 1, 4,  Some([Operand::A,             Operand::A]))),
-        (0xA8,Instruction::new(Mnemonic::XOR, 1, 4,  Some([Operand::A,             Operand::B]))),
-        (0xA9,Instruction::new(Mnemonic::XOR, 1, 4,  Some([Operand::A,             Operand::C]))),
-        (0xAA,Instruction::new(Mnemonic::XOR, 1, 4,  Some([Operand::A,             Operand::D]))),
-        (0xAB,Instruction::new(Mnemonic::XOR, 1, 4,  Some([Operand::A,             Operand::E]))),
-        (0xAC,Instruction::new(Mnemonic::XOR, 1, 4,  Some([Operand::A,             Operand::H]))),
-        (0xAD,Instruction::new(Mnemonic::XOR, 1, 4,  Some([Operand::A,             Operand::L]))),
-        (0xAE,Instruction::new(Mnemonic::XOR, 1, 8,  Some([Operand::A,             Operand::at_memory_HL]))),
-        (0xAF,Instruction::new(Mnemonic::XOR, 1, 4,  Some([Operand::A,             Operand::A]))),
-
-        (0xB0,Instruction::new(Mnemonic::OR,  1, 4,  Some([Operand::A,             Operand::B]))),
-        (0xB1,Instruction::new(Mnemonic::OR,  1, 4,  Some([Operand::A,             Operand::C]))),
-        (0xB2,Instruction::new(Mnemonic::OR,  1, 4,  Some([Operand::A,             Operand::D]))),
-        (0xB3,Instruction::new(Mnemonic::OR,  1, 4,  Some([Operand::A,             Operand::E]))),
-        (0xB4,Instruction::new(Mnemonic::OR,  1, 4,  Some([Operand::A,             Operand::H]))),
-        (0xB5,Instruction::new(Mnemonic::OR,  1, 4,  Some([Operand::A,             Operand::L]))),
-        (0xB6,Instruction::new(Mnemonic::OR,  1, 8,  Some([Operand::A,             Operand::at_memory_HL]))),
-        (0xB7,Instruction::new(Mnemonic::OR,  1, 4,  Some([Operand::A,             Operand::A]))),
-        (0xB8,Instruction::new(Mnemonic::CP,  1, 4,  Some([Operand::A,             Operand::B]))),
-        (0xB9,Instruction::new(Mnemonic::CP,  1, 4,  Some([Operand::A,             Operand::C]))),
-        (0xBA,Instruction::new(Mnemonic::CP,  1, 4,  Some([Operand::A,             Operand::D]))),
-        (0xBB,Instruction::new(Mnemonic::CP,  1, 4,  Some([Operand::A,             Operand::E]))),
-        (0xBC,Instruction::new(Mnemonic::CP,  1, 4,  Some([Operand::A,             Operand::H]))),
-        (0xBD,Instruction::new(Mnemonic::CP,  1, 4,  Some([Operand::A,             Operand::L]))),
-        (0xBE,Instruction::new(Mnemonic::CP,  1, 8,  Some([Operand::A,             Operand::at_memory_HL]))),
-        (0xBF,Instruction::new(Mnemonic::CP,  1, 4,  Some([Operand::A,             Operand::A]))),
-
-        (0xC0,Instruction::new(Mnemonic::RET, 1, 20, Some([Operand::NZ,            Operand::none]))),//todo 20/8
-        (0xC1,Instruction::new(Mnemonic::POP, 1, 12, Some([Operand::BC,            Operand::none]))),
-        (0xC2,Instruction::new(Mnemonic::JP,  3, 16, Some([Operand::NZ,            Operand::a16]))),//todo 16/12
-        (0xC3,Instruction::new(Mnemonic::JP,  3, 16, Some([Operand::a16,           Operand::none]))),
-        (0xC4,Instruction::new(Mnemonic::CALL,3, 24, Some([Operand::NZ,            Operand::a16]))),//todo 24/12
-        (0xC5,Instruction::new(Mnemonic::PUSH,1, 16, Some([Operand::BC,            Operand::none]))),
-        (0xC6,Instruction::new(Mnemonic::ADD, 2, 8,  Some([Operand::A,             Operand::n8]))),
-        (0xC7,Instruction::new(Mnemonic::RST, 1, 16, Some([Operand::vec(0x00),     Operand::none]))),
-        (0xC8,Instruction::new(Mnemonic::RET, 1, 20, Some([Operand::Z,             Operand::none]))),//todo 20/8
-        (0xC9,Instruction::new(Mnemonic::RET, 1, 16, None)),
-        (0xCA,Instruction::new(Mnemonic::JP,  3, 16, Some([Operand::Z,             Operand::a16]))),//todo 16/12
-        (0xCC,Instruction::new(Mnemonic::CALL,3, 24, Some([Operand::Z,             Operand::a16]))),//todo 24/12
-        (0xCD,Instruction::new(Mnemonic::CALL,3, 24, Some([Operand::a16,           Operand::none]))),
-        (0xCE,Instruction::new(Mnemonic::ADC, 2, 8,  Some([Operand::A,             Operand::n8]))),
-        (0xCF,Instruction::new(Mnemonic::RST, 1, 16, Some([Operand::vec(0x08),     Operand::none]))),
-
-        (0xD0,Instruction::new(Mnemonic::RET, 1, 20, Some([Operand::NCY,           Operand::none]))),//todo 20/8
-        (0xD1,Instruction::new(Mnemonic::POP, 1, 12, Some([Operand::DE,            Operand::none]))),
-        (0xD2,Instruction::new(Mnemonic::JP,  3, 16, Some([Operand::NCY,           Operand::a16]))),//todo 16/12
-        (0xD4,Instruction::new(Mnemonic::CALL,3, 24, Some([Operand::NCY,           Operand::a16]))),//todo 24/12
-        (0xD5,Instruction::new(Mnemonic::PUSH,1, 16, Some([Operand::DE,            Operand::none]))),
-        (0xD6,Instruction::new(Mnemonic::SUB, 2, 8,  Some([Operand::A,             Operand::n8]))),
-        (0xD7,Instruction::new(Mnemonic::RST, 1, 16, Some([Operand::vec(0x10),     Operand::none]))),
-        (0xD8,Instruction::new(Mnemonic::RET, 1, 20, Some([Operand::C,             Operand::none]))),//todo 20/8
-        (0xD9,Instruction::new(Mnemonic::RETI,1, 16, None)),
-        (0xDA,Instruction::new(Mnemonic::JP,  3, 16, Some([Operand::C,             Operand::a16]))),//todo 16/12
-        (0xDC,Instruction::new(Mnemonic::CALL,3, 24, Some([Operand::C,             Operand::a16]))),//todo 24/12
-        (0xDE,Instruction::new(Mnemonic::SBC, 2, 8,  Some([Operand::A,             Operand::n8]))),
-        (0xDF,Instruction::new(Mnemonic::RST, 1, 16, Some([Operand::vec(0x18),     Operand::none]))),
-
-        (0xE0,Instruction::new(Mnemonic::LDH, 2, 12, Some([Operand::at_memory_a8,  Operand::A]))),
-        (0xE1,Instruction::new(Mnemonic::POP, 1, 12, Some([Operand::HL,            Operand::none]))),
-        (0xE2,Instruction::new(Mnemonic::LD,  1, 8,  Some([Operand::at_memory_C,   Operand::A]))),
-        (0xE5,Instruction::new(Mnemonic::PUSH,1, 16, Some([Operand::HL,            Operand::none]))),
-        (0xE6,Instruction::new(Mnemonic::AND, 2, 8,  Some([Operand::A,             Operand::n8]))),
-        (0xE7,Instruction::new(Mnemonic::RST, 1, 16, Some([Operand::vec(0x20),     Operand::none]))),
-        (0xE8,Instruction::new(Mnemonic::ADD, 2, 16, Some([Operand::SP,            Operand::e8]))),
-        (0xE9,Instruction::new(Mnemonic::JP,  1, 4,  Some([Operand::HL,            Operand::none]))),
-        (0xEA,Instruction::new(Mnemonic::LD,  3, 16, Some([Operand::at_memory_a16, Operand::A]))),
-        (0xEE,Instruction::new(Mnemonic::XOR, 2, 8,  Some([Operand::A,             Operand::n8]))),
-        (0xEF,Instruction::new(Mnemonic::RST, 1, 16, Some([Operand::vec(0x28),     Operand::none]))),
-
-        (0xF0,Instruction::new(Mnemonic::LDH, 2, 12, Some([Operand::A,             Operand::at_memory_a8]))),
-        (0xF1,Instruction::new(Mnemonic::POP, 1, 12, Some([Operand::AF,            Operand::none]))),
-        (0xF2,Instruction::new(Mnemonic::LD,  1, 8,  Some([Operand::A,             Operand::at_memory_C]))),
-        (0xF3,Instruction::new(Mnemonic::DI,  1, 4,  None)),
-        (0xF5,Instruction::new(Mnemonic::PUSH,1, 16, Some([Operand::AF,            Operand::none]))),
-        (0xF6,Instruction::new(Mnemonic::OR,  2, 8,  Some([Operand::A,             Operand::n8]))),
-        (0xF7,Instruction::new(Mnemonic::RST, 1, 16, Some([Operand::vec(0x30),     Operand::none]))),
-        (0xF8,Instruction::new(Mnemonic::LD,  2, 12, Some([Operand::HL,            Operand::SP_plus_e8]))),
-        (0xF9,Instruction::new(Mnemonic::LD,  1, 8,  Some([Operand::SP,            Operand::HL]))),
-        (0xFA,Instruction::new(Mnemonic::LD,  3, 16, Some([Operand::A,             Operand::at_memory_a16]))),
-        (0xFB,Instruction::new(Mnemonic::EI,  1, 4,  None)),
-        (0xFE,Instruction::new(Mnemonic::CP,  2, 8,  Some([Operand::A,             Operand::n8]))),
-        (0xFF,Instruction::new(Mnemonic::RST, 1, 16, Some([Operand::vec(0x38),     Operand::none]))),
-
-        (0xCB,Instruction::new(Mnemonic::PREFIX,1,4, None))
-
-    ]);
-}
-
 pub struct Cpu {
-    //registers
+    //general registers
     A: u8,
     B: u8,
     C: u8,
@@ -396,1212 +13,1806 @@ pub struct Cpu {
     H: u8,
     L: u8,
 
-    //flags
-    z: bool,
-    n: bool,
-    h: bool,
-    c: bool,
+    //flags register
+    //binary: znhc_0000
+    F: u8,
+
+    //interrupt flag 
+    IME: bool,
+
+    is_halted: bool,
 
     // stack pointer and program counter
     pub sp: u16,
     pub pc: u16,
 
-    databus: Rc<DataBus>,
+    databus: Rc<RefCell<DataBus>>,
+}
+
+impl std::fmt::Display for Cpu {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "
+            A: {:#04x}
+            B: {:#04x}
+            C: {:#04x}
+            D: {:#04x}
+            E: {:#04x}
+            H: {:#04x}
+            L: {:#04x}
+
+            F: {:#010b}
+
+            sp: {:#06x}
+            pc: {:#06x}
+            ", self.A, self.B, self.C, self.D, self.E, self.H, self.L, self.F, self.sp, self.pc)
+    }
 }
 
 impl Cpu {
-    pub fn new(databus: Rc<DataBus>) -> Cpu {
+    pub fn new(databus: Rc<RefCell<DataBus>>) -> Cpu {
         Cpu {
-            A: 0x01,
+            A: 0x7c,
             B: 0x00,
-            C: 0x13,
+            C: 0x7d,
             D: 0x00,
             E: 0xD8,
             H: 0x01,
             L: 0x4D,
 
-            z: true,
-            n: false,
-            h: false,
-            c: false,
+            F: 0b1000_0000,
 
-            sp: 0xFFFE,
+            IME: false,
+
+            is_halted: false,
+
+            sp: 0xFFFC,
             pc: 0x0100,
 
             databus,
         }
     }
 
+    fn flip_z(&mut self){
+        self.F ^= 0b1000_0000;
+    }
+
+    fn flip_n(&mut self){
+        self.F ^= 0b0100_0000;
+    }
+
+    fn flip_h(&mut self){
+        self.F ^= 0b0010_0000;
+    }
+
+    fn flip_c(&mut self){
+        self.F ^= 0b0001_0000;
+    }
+
+    fn set_z_to(&mut self, value: bool) {
+        //clean right most bit; a.k.a. z flag.
+        self.F &= !(1 << 7) as u8;
+        //set right most bit to passed value.
+        self.F |= (value as u8) << 7;
+    }
+
+    fn set_n_to(&mut self, value: bool) {
+        self.F &= !(1 << 6) as u8;
+        self.F |= (value as u8) << 6;
+    }
+
+    fn set_h_to(&mut self, value: bool) {
+        self.F &= !(1 << 5) as u8;
+        self.F |= (value as u8) << 5;
+    }
+
+    fn set_c_to(&mut self, value: bool) {
+        self.F &= !(1 << 4) as u8;
+        self.F |= (value as u8) << 4;
+    }
+
+    fn get_z(&self) -> bool{
+        if (self.F & 0b1000_0000) > 0 {
+            return true
+        }
+        false
+    }
+
+    fn get_n(&self) -> bool{
+        if (self.F & 0b0100_0000) > 0 {
+            return true
+        }
+        false
+    }
+    fn get_h(&self) -> bool{
+        if (self.F & 0b0010_0000) > 0 {
+            return true
+        }
+        false
+    }
+    fn get_c(&self) -> bool{
+        if (self.F & 0b0001_0000) > 0 {
+            return true
+        }
+        false
+    }
+
+    fn get_HL(&self) -> u16 {
+        let mut HL: u16 = 0x0000;
+        HL |= self.H as u16;
+        HL <<= 8;
+        HL |= self.L as u16;
+        HL
+    }
+
+    fn get_DE(&self) -> u16 {
+        let mut DE: u16 = 0x0000;
+        DE |= self.D as u16;
+        DE <<= 8;
+        DE |= self.E as u16;
+        DE
+    }
+
+    fn get_BC(&self) -> u16 {
+        let mut BC: u16 = 0x0000;
+        BC |= self.B as u16;
+        BC <<= 8;
+        BC |= self.C as u16;
+        BC
+    }
+
+    fn get_AF(&self) -> u16 {
+        let mut AF: u16 = 0x0000;
+        AF |= self.A as u16;
+        AF <<= 8;
+        AF |= self.F as u16;
+        AF
+    }
+
+    fn get_a16(&self) -> u16 {
+        let mut a16: u16 = 0x0000;
+        let databus_borrow = self.databus.borrow();
+        a16 |= databus_borrow.read_memory(self.pc + 2) as u16;
+        a16  <<= 8;
+        a16 |= databus_borrow.read_memory(self.pc + 1) as u16;
+        a16
+    }
+
+    fn get_n16(&self) -> u16 {
+        let mut n16: u16 = 0x0000;
+        n16 |= self.databus.borrow().read_memory(self.pc + 2) as u16;
+        n16 <<= 8;
+        n16 |= self.databus.borrow().read_memory(self.pc + 1) as u16;
+        n16
+    }
+
+    fn get_n16_bytes(&self) -> [u8; 2] {
+        [
+            self.databus.borrow().read_memory(self.pc + 2),
+            self.databus.borrow().read_memory(self.pc + 1),
+        ]
+    }
+
+    fn get_n8(&self) -> u8 {
+        self.databus.borrow().read_memory(self.pc + 1)
+    }
+
+    fn get_e8(&self) -> i8 {
+        self.databus.borrow().read_memory(self.pc + 1) as i8
+    }
+
+    fn ADC(&mut self, addition_byte: u8) {
+        let result = self.A.overflowing_add(addition_byte + self.get_c() as u8);
+
+        if result.0 == 0 {
+            self.set_z_to(true);
+        }
+        if result.1 {
+            self.set_c_to(true);
+        }
+        if ((self.A & 0x0F) + (addition_byte & 0x0F)) > 0x0F {
+            self.set_h_to(true);
+        }
+        self.set_n_to(false);
+
+        self.A = result.0;
+    }
+
+    fn ADD(&mut self, rhs: u8) {
+        let result = self.A.overflowing_add(rhs);
+
+        if result.0 == 0 {
+            self.set_z_to(true);
+        }
+        if result.1 {
+            self.set_c_to(true);
+        }
+        if ((self.A & 0x0F) + (rhs & 0x0F)) > 0x0F {
+            self.set_h_to(true);
+        }
+        self.set_n_to(false);
+
+        self.A = result.0;
+    }
+
+    fn ADD_16bit(&mut self, rhs: u16) {
+        let HL = self.get_HL();
+        let result = HL.overflowing_add(rhs);
+
+        if result.1 {
+            self.set_c_to(true);
+        }
+        if ((HL & 0x0FFF) + (rhs & 0x0FFF)) > 0x0FFF {
+            self.set_h_to(true);
+        }
+        self.set_n_to(false);
+
+        self.H = (result.0 >> 8) as u8;
+        self.L = (result.0 & 0xFF) as u8;
+    }
+
+    fn AND(&mut self, rhs: u8) {
+        let result = self.A & rhs;
+
+        if result == 0 {
+            self.set_z_to(true);
+        }
+        self.set_n_to(false);
+        self.set_h_to(true);
+        self.set_c_to(false);
+
+        self.A = result;
+    }
+
+    fn CALL(&mut self, a16: u16) {
+        let mut databus_borrow = self.databus.borrow_mut();
+
+        //Push next instruction address onto stack
+        self.sp -= 1;
+        databus_borrow.write_memory(((self.pc + 3) >> 8) as u8, self.sp);
+        self.sp -= 1;
+        databus_borrow.write_memory(((self.pc + 3) & 0xFF) as u8, self.sp);
+
+        //jump to address a16
+        self.pc = a16;
+    }
+
+    fn CP(&mut self, rhs: u8) {
+        if self.A == rhs {
+            self.set_z_to(true);
+        }
+        if self.A < rhs {
+            self.set_c_to(true);
+        }
+        //this may be fucked
+        if (self.A & 0x0F) < (rhs & 0x0F) {
+            self.set_h_to(true);
+        }
+        self.set_n_to(true);
+    }
+
+    fn DAA(&mut self) {
+        // https://blog.ollien.com/posts/gb-daa/
+        let mut offset: u8 = 0;
+        let is_carry = self.get_c();
+        let is_half_carry = self.get_h();
+        let is_subtract = self.get_n();
+
+        if is_half_carry || (!is_subtract && (self.A & 0x0F) > 0x09) {
+            offset |= 0x06;
+        }
+        if is_carry || (!is_subtract && self.A > 0x99) {
+            offset |= 0x60;
+            self.set_c_to(true);
+        }
+
+        if is_subtract {
+            self.A = self.A.wrapping_sub(offset);
+        }
+        else {
+            self.A = self.A.wrapping_add(offset);
+        }
+
+        if self.A == 0 {
+            self.set_z_to(true);
+        }
+        else {
+            self.set_z_to(false);
+        }
+        self.set_h_to(false);
+    }
+
+    fn DEC(&mut self, lhs: u8) -> u8 {
+        let result = lhs.wrapping_sub(1);
+
+        if result == 0 {
+            self.set_z_to(true);
+        }
+        //this may be fucked
+        //maybe (lhs > 0) && (lhs & 0x0F == 0)
+        if lhs & 0x0F == 0 {
+            self.set_h_to(true);
+        }
+        self.set_n_to(true);
+
+        result
+    }
+
+    fn DEC_16bit(&mut self, lhs: u16) -> u16 {
+        lhs.wrapping_sub(1)
+    }
+
+    fn INC(&mut self, lhs: u8) -> u8 {
+        let result = lhs.wrapping_add(1);
+
+        if result == 0 {
+            self.set_z_to(true);
+        }
+        //this also may be as fucked as ^
+        if lhs & 0x0F == 0x0F {
+            self.set_h_to(true);
+        }
+        self.set_n_to(false);
+
+        result
+    }
+
+    fn INC_16bit(&mut self, lhs: u16) -> u16 {
+        lhs.wrapping_add(1)
+    }
+
+    fn OR(&mut self, rhs: u8) -> u8 {
+        let result = self.A | rhs;
+
+        if result == 0 {
+            self.set_z_to(true);
+        }
+        self.set_n_to(false);
+        self.set_h_to(false);
+        self.set_c_to(false);
+
+        result
+    }
+
+    fn POP(&mut self) -> (u8, u8) {
+        let databus_borrow = self.databus.borrow();
+        let lsb: u8 = databus_borrow.read_memory(self.sp);
+        self.sp = self.sp.wrapping_add(1);
+        let msb: u8 = databus_borrow.read_memory(self.sp);
+        self.sp = self.sp.wrapping_add(1);
+
+        (msb, lsb)
+    }
+
+    fn PUSH(&mut self, rhs: u16) {
+        let mut databus_borrow = self.databus.borrow_mut();
+        self.sp = self.sp.wrapping_sub(1);
+        databus_borrow.write_memory((rhs >> 8) as u8, self.sp);
+        self.sp = self.sp.wrapping_sub(1);
+        databus_borrow.write_memory((rhs & 0xFF) as u8, self.sp);
+    }
+
+    fn SBC(&mut self, rhs: u8) -> u8 {
+        let result = self.A.overflowing_sub(rhs + self.get_c() as u8);
+
+        if result.0 == 0 {
+            self.set_z_to(true);
+        }
+        self.set_n_to(true);
+        if self.A & 0x0F < (rhs + self.get_c() as u8) & 0x0F {
+            self.set_h_to(true);
+        }
+        if result.1 {
+            self.set_c_to(true);
+        }
+
+        result.0
+    }
+
+    fn SUB(&mut self, rhs: u8) -> u8 {
+        let result = self.A.overflowing_sub(rhs);
+
+        if result.0 == 0 {
+            self.set_z_to(true);
+        }
+        self.set_n_to(true);
+        if self.A & 0x0F < rhs & 0x0F {
+            self.set_h_to(true);
+        }
+        if result.1 {
+            self.set_c_to(true);
+        }
+
+        result.0
+    }
+
+    fn XOR(&mut self, rhs: u8) -> u8 {
+        let result = self.A ^ rhs;
+
+        if result == 0 {
+            self.set_z_to(true);
+        }
+        self.set_n_to(false);
+        self.set_h_to(false);
+        self.set_c_to(false);
+
+        result
+    }
+
     pub fn exec_instruction(&mut self, instruction_byte: u8) {
         let instruction = INSTRUCTIONS_MAP.get(&instruction_byte).unwrap();
-        if !matches!(instruction.mnemonic, Mnemonic::PREFIX) {
-            match instruction.mnemonic {
-                Mnemonic::ADC => {
-                    match instruction.operands.as_ref().unwrap() {
 
-                        [Operand::A, Operand::B] => {
-                            println!("ADC A, B");
-                        }
-
-                        [Operand::A, Operand::C] => {
-                            println!("ADC A, C");
-                        }
-
-                        [Operand::A, Operand::D] => {
-                            println!("ADC A, D");
-                        }
-
-                        [Operand::A, Operand::E] => {
-                            println!("ADC A, E");
-                        }
-
-                        [Operand::A, Operand::H] => {
-                            println!("ADC A, H");
-                        }
-
-                        [Operand::A, Operand::L] => {
-                            println!("ADC A, L");
-                        }
-
-                        [Operand::A, Operand::at_memory_HL] => {
-                            println!("ADC A, at_memory_HL");
-                        }
-
-                        [Operand::A, Operand::A] => {
-                            println!("ADC A, A");
-                        }
-
-                        [Operand::A, Operand::n8] => {
-                            println!("ADC A, n8");
-                        }
-
-                        _ => {
-                            eprintln!("Non existing ADC instruction.");
-                        }
-                    }
-                }
-
-                Mnemonic::ADD => {
-                    match instruction.operands.as_ref().unwrap() {
-
-                        [Operand::HL, Operand::BC] => {
-                            println!("ADD HL, BC");
-                        }
-
-                        [Operand::HL, Operand::DE] => {
-                            println!("ADD HL, DE");
-                        }
-
-                        [Operand::HL, Operand::HL] => {
-                            println!("ADD HL, HL");
-                        }
-
-                        [Operand::HL, Operand::SP] => {
-                            println!("ADD HL, SP");
-                        }
-
-                        [Operand::A, Operand::B] => {
-                            println!("ADD A, B");
-                        }
-
-                        [Operand::A, Operand::C] => {
-                            println!("ADD A, C");
-                        }
-
-                        [Operand::A, Operand::D] => {
-                            println!("ADD A, D");
-                        }
-
-                        [Operand::A, Operand::E] => {
-                            println!("ADD A, E");
-                        }
-
-                        [Operand::A, Operand::H] => {
-                            println!("ADD A, H");
-                        }
-
-                        [Operand::A, Operand::L] => {
-                            println!("ADD A, L");
-                        }
-
-                        [Operand::A, Operand::at_memory_HL] => {
-                            println!("ADD A, at_memory_HL");
-                        }
-
-                        [Operand::A, Operand::A] => {
-                            println!("ADD A, A");
-                        }
-
-                        [Operand::A, Operand::n8] => {
-                            println!("ADD A, n8");
-                        }
-
-                        [Operand::SP, Operand::e8] => {
-                            println!("ADD SP, e8");
-                        }
-
-                        _ => {
-                            eprintln!("Non existing ADD instruction.");
-                        }
-
-                    }
-                }
-
-                Mnemonic::AND => {
-                    match instruction.operands.as_ref().unwrap() {
-
-                        [Operand::A, Operand::B] => {
-                            println!("AND A, B");
-                        }
-
-                        [Operand::A, Operand::C] => {
-                            println!("AND A, C");
-                        }
-
-                        [Operand::A, Operand::D] => {
-                            println!("AND A, D");
-                        }
-
-                        [Operand::A, Operand::E] => {
-                            println!("AND A, E");
-                        }
-
-                        [Operand::A, Operand::H] => {
-                            println!("AND A, H");
-                        }
-
-                        [Operand::A, Operand::L] => {
-                            println!("AND A, L");
-                        }
-
-                        [Operand::A, Operand::at_memory_HL] => {
-                            println!("AND A, at_memory_HL");
-                        }
-
-                        [Operand::A, Operand::A] => {
-                            println!("AND A, A");
-                        }
-
-                        [Operand::A, Operand::n8] => {
-                            println!("AND A, n8");
-                        }
-
-                        _ => {
-                            eprintln!("Non existing AND instruction.");
-                        }
-                    }
-                }
-
-                Mnemonic::CALL => {
-                    match instruction.operands.as_ref().unwrap() {
-
-                        [Operand::NZ, Operand::a16] => {
-                            println!("CALL NZ, a16");
-                        }
-
-                        [Operand::Z, Operand::a16] => {
-                            println!("CALL Z, a16");
-                        }
-
-                        [Operand::a16, Operand::none] => {
-                            println!("CALL a16");
-                        }
-
-                        [Operand::NCY, Operand::a16] => {
-                            println!("CALL NCY, a16");
-                        }
-
-                        [Operand::C, Operand::a16] => {
-                            println!("CALL C, a16");
-                        }
-
-                        _ => {
-                            eprintln!("Non existing CALL instruction.");
-                        }
-
-
-                    }
-                }
-
-                Mnemonic::CCF => {
-                    println!("CCF");
-                }
-
-                Mnemonic::CP => {
-                    match instruction.operands.as_ref().unwrap() {
-
-                        [Operand::A, Operand::B] => {
-                            println!("CP A, B");
-                        }
-
-                        [Operand::A, Operand::C] => {
-                            println!("CP A, C");
-                        }
-
-                        [Operand::A, Operand::D] => {
-                            println!("CP A, D");
-                        }
-
-                        [Operand::A, Operand::E] => {
-                            println!("CP A, E");
-                        }
-
-                        [Operand::A, Operand::H] => {
-                            println!("CP A, H");
-                        }
-
-                        [Operand::A, Operand::L] => {
-                            println!("CP A, L");
-                        }
-
-                        [Operand::A, Operand::at_memory_HL] => {
-                            println!("CP A, at_memory_HL");
-                        }
-
-                        [Operand::A, Operand::A] => {
-                            println!("CP A, A");
-                        }
-
-                        [Operand::A, Operand::n8] => {
-                            println!("CP A, n8");
-                        }
-
-                        _ => {
-                            eprintln!("Non existing CP instruction.");
-                        }
-                    }
-                }
-
-                Mnemonic::CPL => {
-                    println!("CPL");
-                }
-
-                Mnemonic::DAA => {
-                    println!("DAA");
-                }
-
-                Mnemonic::DEC => {
-                    match instruction.operands.as_ref().unwrap() {
-
-                        [Operand::B, Operand::none] => {
-                            println!("DEC B");
-                        }
-
-                        [Operand::BC, Operand::none] => {
-                            println!("DEC BC");
-                        }
-
-                        [Operand::C, Operand::none] => {
-                            println!("DEC C");
-                        }
-
-                        [Operand::D, Operand::none] => {
-                            println!("DEC D");
-                        }
-
-                        [Operand::DE, Operand::none] => {
-                            println!("DEC DE");
-                        }
-
-                        [Operand::E, Operand::none] => {
-                            println!("DEC E");
-                        }
-
-                        [Operand::H, Operand::none] => {
-                            println!("DEC H");
-                        }
-
-                        [Operand::HL, Operand::none] => {
-                            println!("DEC HL");
-                        }
-
-                        [Operand::L, Operand::none] => {
-                            println!("DEC L");
-                        }
-
-                        [Operand::at_memory_HL, Operand::none] => {
-                            println!("DEC at_memory_HL");
-                        }
-
-                        [Operand::SP, Operand::none] => {
-                            println!("DEC SP");
-                        }
-
-                        [Operand::A, Operand::none] => {
-                            println!("DEC A");
-                        }
-
-                        _ => {
-                            eprintln!("Non existing DEC instruction.");
-                        }
-                    }
-                }
-
-                Mnemonic::DI => {
-                    println!("DI");
-                }
-
-                Mnemonic::EI => {
-                    println!("EI");
-                }
-
-                Mnemonic::HALT => {
-                    println!("HALT");
-                }
-
-                Mnemonic::INC => {
-                    match instruction.operands.as_ref().unwrap() {
-
-                        [Operand::BC, Operand::none] => {
-                            println!("INC BC");
-                        }
-
-                        [Operand::B, Operand::none] => {
-                            println!("INC B");
-                        }
-
-                        [Operand::C, Operand::none] => {
-                            println!("INC C");
-                        }
-
-                        [Operand::DE, Operand::none] => {
-                            println!("INC DE");
-                        }
-
-                        [Operand::D, Operand::none] => {
-                            println!("INC D");
-                        }
-
-                        [Operand::E, Operand::none] => {
-                            println!("INC E");
-                        }
-
-                        [Operand::HL, Operand::none] => {
-                            println!("INC HL");
-                        }
-
-                        [Operand::H, Operand::none] => {
-                            println!("INC H");
-                        }
-
-                        [Operand::L, Operand::none] => {
-                            println!("INC L");
-                        }
-
-                        [Operand::SP, Operand::none] => {
-                            println!("INC SP");
-                        }
-
-                        [Operand::at_memory_HL, Operand::none] => {
-                            println!("INC at_memory_HL");
-                        }
-
-                        [Operand::A, Operand::none] => {
-                            println!("INC A");
-                        }
-
-                        _ => {
-                            eprintln!("Non existing INC instruction.");
-                        }
-                    }
-                }
-
-                Mnemonic::JP => {
-                    match instruction.operands.as_ref().unwrap() {
-
-                        [Operand::NZ, Operand::a16] => {
-                            println!("JP NZ, a16");
-                        }
-
-                        [Operand::a16, Operand::none] => {
-                            println!("JP a16");
-                        }
-
-                        [Operand::Z, Operand::a16] => {
-                            println!("JP Z, a16");
-                        }
-
-                        [Operand::NCY, Operand::a16] => {
-                            println!("JP NCY, a16");
-                        }
-
-                        [Operand::C, Operand::a16] => {
-                            println!("JP C, a16");
-                        }
-
-                        [Operand::HL, Operand::none] => {
-                            println!("JP HL");
-                        }
-
-                        _ => {
-                            eprintln!("Non existing JP instruction.");
-                        }
-
-                    }
-                }
-
-                Mnemonic::JR => {
-                    match instruction.operands.as_ref().unwrap() {
-
-                        [Operand::e8, Operand::none] => {
-                            println!("JR e8");
-                        }
-
-                        [Operand::NZ, Operand::e8] => {
-                            println!("JR NZ, e8");
-                        }
-
-                        [Operand::Z, Operand::e8] => {
-                            println!("JR Z, e8");
-                        }
-
-                        [Operand::NCY, Operand::e8] => {
-                            println!("JR NCY, e8");
-                        }
-
-                        [Operand::C, Operand::e8] => {
-                            println!("JR C, e8");
-                        }
-
-                        _ => {
-                            eprintln!("Non existing JR instruction.");
-                        }
-                    }
-                }
-
-                Mnemonic::LD => {
-                    match instruction.operands.as_ref().unwrap() {
-                        [Operand::BC, Operand::n16] => {
-                            println!("LD BC n16");
-                        }
-
-                        [Operand::at_memory_BC, Operand::A] => {
-                            println!("LD AT_MEMORY_BC A");
-                        }
-
-                        [Operand::B, Operand::n8] => {
-                            println!("LD B n8");
-                        }
-
-                        [Operand::at_memory_a16, Operand::SP] => {
-                            println!("LD [a16] SP");
-                        }
-
-                        [Operand::A, Operand::at_memory_BC] => {
-                            println!("LD A, [BC]");
-                        }
-
-                        [Operand::C, Operand::n8] => {
-                            println!("LD C, n8");
-                        }
-
-                        [Operand::DE, Operand::n16] => {
-                            println!("LD DE, n16");
-                        }
-
-                        [Operand::at_memory_DE, Operand::A] => {
-                            println!("LD at_memory_DE, A");
-                        }
-
-                        [Operand::D, Operand::n8] => {
-                            println!("LD D, n8");
-                        }
-
-                        [Operand::A, Operand::at_memory_DE] => {
-                            println!("LD A, at_memory_DE");
-                        }
-
-                        [Operand::E, Operand::n8] => {
-                            println!("LD E, n8");
-                        }
-
-                        [Operand::HL, Operand::n16] => {
-                            println!("LD HL, n16");
-                        }
-
-                        [Operand::at_memory_HLI, Operand::A] => {
-                            println!("LD at_memory_HLI, A");
-                        }
-
-                        [Operand::H, Operand::n8] => {
-                            println!("LD H, n8");
-                        }
-
-                        [Operand::A, Operand::at_memory_HLI] => {
-                            println!("LD A, at_memory_HLI");
-                        }
-
-                        [Operand::L, Operand::n8] => {
-                            println!("LD L, n8");
-                        }
-
-                        [Operand::SP, Operand::n16] => {
-                            println!("LD SP, n16");
-                        }
-
-                        [Operand::at_memory_HLD, Operand::A] => {
-                            println!("LD at_memory_HLD, A");
-                        }
-
-                        [Operand::at_memory_HL, Operand::n8] => {
-                            println!("LD at_memory_HL, n8");
-                        }
-
-                        [Operand::A, Operand::at_memory_HLD] => {
-                            println!("LD A, at_memory_HLD");
-                        }
-
-                        [Operand::A, Operand::n8] => {
-                            println!("LD A, n8");
-                        }
-
-                        [Operand::B, Operand::B] => {
-                            println!("LD B, B");
-                        }
-
-                        [Operand::B, Operand::C] => {
-                            println!("LD B, C");
-                        }
-
-                        [Operand::B, Operand::D] => {
-                            println!("LD B, D");
-                        }
-
-                        [Operand::B, Operand::E] => {
-                            println!("LD B, E");
-                        }
-
-                        [Operand::B, Operand::H] => {
-                            println!("LD B, H");
-                        }
-
-                        [Operand::B, Operand::L] => {
-                            println!("LD B, L");
-                        }
-
-                        [Operand::B, Operand::at_memory_HL] => {
-                            println!("LD B, at_memory_HL");
-                        }
-
-                        [Operand::B, Operand::A] => {
-                            println!("LD B, A");
-                        }
-
-                        [Operand::C, Operand::B] => {
-                            println!("LD C, B");
-                        }
-
-                        [Operand::C, Operand::C] => {
-                            println!("LD C, C");
-                        }
-
-                        [Operand::C, Operand::D] => {
-                            println!("LD C, D");
-                        }
-
-                        [Operand::C, Operand::E] => {
-                            println!("LD C, E");
-                        }
-
-                        [Operand::C, Operand::H] => {
-                            println!("LD C, H");
-                        }
-
-                        [Operand::C, Operand::L] => {
-                            println!("LD C, L");
-                        }
-
-                        [Operand::C, Operand::at_memory_HL] => {
-                            println!("LD C, at_memory_HL");
-                        }
-
-                        [Operand::C, Operand::A] => {
-                            println!("LD C, A");
-                        }
-
-                        [Operand::D, Operand::B] => {
-                            println!("LD D, B");
-                        }
-
-                        [Operand::D, Operand::C] => {
-                            println!("LD D, C");
-                        }
-
-                        [Operand::D, Operand::D] => {
-                            println!("LD D, D");
-                        }
-
-                        [Operand::D, Operand::E] => {
-                            println!("LD D, E");
-                        }
-
-                        [Operand::D, Operand::H] => {
-                            println!("LD D, H");
-                        }
-
-                        [Operand::D, Operand::L] => {
-                            println!("LD D, L");
-                        }
-
-                        [Operand::D, Operand::at_memory_HL] => {
-                            println!("LD D, at_memory_HL");
-                        }
-
-                        [Operand::D, Operand::A] => {
-                            println!("LD D, A");
-                        }
-
-                        [Operand::E, Operand::B] => {
-                            println!("LD E, B");
-                        }
-
-                        [Operand::E, Operand::C] => {
-                            println!("LD E, C");
-                        }
-
-                        [Operand::E, Operand::D] => {
-                            println!("LD E, D");
-                        }
-
-                        [Operand::E, Operand::E] => {
-                            println!("LD E, E");
-                        }
-
-                        [Operand::E, Operand::H] => {
-                            println!("LD E, H");
-                        }
-
-                        [Operand::E, Operand::L] => {
-                            println!("LD E, L");
-                        }
-
-                        [Operand::E, Operand::at_memory_HL] => {
-                            println!("LD E, at_memory_HL");
-                        }
-
-                        [Operand::E, Operand::A] => {
-                            println!("LD E, A");
-                        }
-
-                        [Operand::H, Operand::B] => {
-                            println!("LD H, B");
-                        }
-
-                        [Operand::H, Operand::C] => {
-                            println!("LD H, C");
-                        }
-
-                        [Operand::H, Operand::D] => {
-                            println!("LD H, D");
-                        }
-
-                        [Operand::H, Operand::E] => {
-                            println!("LD H, E");
-                        }
-
-                        [Operand::H, Operand::H] => {
-                            println!("LD H, H");
-                        }
-
-                        [Operand::H, Operand::L] => {
-                            println!("LD H, L");
-                        }
-
-                        [Operand::H, Operand::at_memory_HL] => {
-                            println!("LD H, at_memory_HL");
-                        }
-
-                        [Operand::H, Operand::A] => {
-                            println!("LD H, A");
-                        }
-
-                        [Operand::L, Operand::B] => {
-                            println!("LD L, B");
-                        }
-
-                        [Operand::L, Operand::C] => {
-                            println!("LD L, C");
-                        }
-
-                        [Operand::L, Operand::D] => {
-                            println!("LD L, D");
-                        }
-
-                        [Operand::L, Operand::E] => {
-                            println!("LD L, E");
-                        }
-
-                        [Operand::L, Operand::H] => {
-                            println!("LD L, H");
-                        }
-
-                        [Operand::L, Operand::L] => {
-                            println!("LD L, L");
-                        }
-
-                        [Operand::L, Operand::at_memory_HL] => {
-                            println!("LD L, at_memory_HL");
-                        }
-
-                        [Operand::L, Operand::A] => {
-                            println!("LD L, A");
-                        }
-
-                        [Operand::at_memory_HL, Operand::B] => {
-                            println!("LD at_memory_HL, B");
-                        }
-
-                        [Operand::at_memory_HL, Operand::C] => {
-                            println!("LD at_memory_HL, C");
-                        }
-
-                        [Operand::at_memory_HL, Operand::D] => {
-                            println!("LD at_memory_HL, D");
-                        }
-
-                        [Operand::at_memory_HL, Operand::E] => {
-                            println!("LD at_memory_HL, E");
-                        }
-
-                        [Operand::at_memory_HL, Operand::H] => {
-                            println!("LD at_memory_HL, H");
-                        }
-
-                        [Operand::at_memory_HL, Operand::L] => {
-                            println!("LD at_memory_HL, L");
-                        }
-
-                        [Operand::at_memory_HL, Operand::A] => {
-                            println!("LD at_memory_HL, A");
-                        }
-
-                        [Operand::A, Operand::B] => {
-                            println!("LD A, B");
-                        }
-
-                        [Operand::A, Operand::C] => {
-                            println!("LD A, C");
-                        }
-
-                        [Operand::A, Operand::D] => {
-                            println!("LD A, D");
-                        }
-
-                        [Operand::A, Operand::E] => {
-                            println!("LD A, E");
-                        }
-
-                        [Operand::A, Operand::H] => {
-                            println!("LD A, H");
-                        }
-
-                        [Operand::A, Operand::L] => {
-                            println!("LD A, L");
-                        }
-
-                        [Operand::A, Operand::at_memory_HL] => {
-                            println!("LD A, at_memory_HL");
-                        }
-
-                        [Operand::A, Operand::A] => {
-                            println!("LD A, A");
-                        }
-
-                        [Operand::at_memory_C, Operand::A] => {
-                            println!("LD at_memory_C, A");
-                        }
-
-                        [Operand::at_memory_a16, Operand::A] => {
-                            println!("LD at_memory_a16, A");
-                        }
-
-                        [Operand::A, Operand::at_memory_C] => {
-                            println!("LD A, at_memory_C");
-                        }
-
-                        [Operand::HL, Operand::SP_plus_e8] => {
-                            println!("LD HL, SP + e8");
-                        }
-
-                        [Operand::SP, Operand::HL] => {
-                            println!("LD SP, HL");
-                        }
-
-                        [Operand::A, Operand::at_memory_a16] => {
-                            println!("LD A, at_memory_a16");
-                        }
-
-                        _ => {
-                            eprintln!("Non existing LD instruction.");
-                        }
-                    }
-                }
-
-                Mnemonic::LDH => {
-                    match instruction.operands.as_ref().unwrap() {
-
-                        [Operand::at_memory_a8, Operand::A] => {
-                            println!("LDH at_memory_a8, A");
-                        }
-
-                        [Operand::A, Operand::at_memory_a8] => {
-                            println!("LDH A, at_memory_a8");
-                        }
-
-                        _ => {
-                            eprintln!("Non existing LDH instruction.");
-                        }
-
+        if crate::DEBUG {
+            println!("
+            CPU STATE BEFORE:
+                {}", self);
+            println!("
+            INSTRUCTION:
+                {}", instruction);
+        }
+
+        match instruction.mnemonic {
+            Mnemonic::ADC => {
+                match instruction.operands.as_ref().unwrap() {
+
+                    [Operand::A, Operand::B] => {
+                        self.ADC(self.B);
                     }
 
-                }
-
-                Mnemonic::NOP => {
-                    println!("NOP");
-                }
-
-                Mnemonic::OR => {
-                    match instruction.operands.as_ref().unwrap() {
-
-                        [Operand::A, Operand::B] => {
-                            println!("OR A, B");
-                        }
-
-                        [Operand::A, Operand::C] => {
-                            println!("OR A, C");
-                        }
-
-                        [Operand::A, Operand::D] => {
-                            println!("OR A, D");
-                        }
-
-                        [Operand::A, Operand::E] => {
-                            println!("OR A, E");
-                        }
-
-                        [Operand::A, Operand::H] => {
-                            println!("OR A, H");
-                        }
-
-                        [Operand::A, Operand::L] => {
-                            println!("OR A, L");
-                        }
-
-                        [Operand::A, Operand::at_memory_HL] => {
-                            println!("OR A, at_memory_HL");
-                        }
-
-                        [Operand::A, Operand::A] => {
-                            println!("OR A, A");
-                        }
-
-                        [Operand::A, Operand::n8] => {
-                            println!("OR A, n8");
-                        }
-
-                        _ => {
-                            eprintln!("Non existing OR instruction.");
-                        }
+                    [Operand::A, Operand::C] => {
+                        self.ADC(self.C);
                     }
-                }
 
-                Mnemonic::POP => {
-                    match instruction.operands.as_ref().unwrap() {
-
-                        [Operand::BC, Operand::none] => {
-                            println!("POP BC");
-                        }
-
-                        [Operand::DE, Operand::none] => {
-                            println!("POP DE");
-                        }
-
-                        [Operand::HL, Operand::none] => {
-                            println!("POP HL");
-                        }
-
-                        [Operand::AF, Operand::none] => {
-                            println!("POP AF");
-                        }
-
-                        _ => {
-                            eprintln!("Non existing POP instruction.");
-                        }
+                    [Operand::A, Operand::D] => {
+                        self.ADC(self.D);
                     }
-                }
 
-                Mnemonic::PREFIX => {
-                    println!("PREFIX");
-                }
-
-                Mnemonic::PUSH => {
-                    match instruction.operands.as_ref().unwrap() {
-
-                        [Operand::BC, Operand::none] => {
-                            println!("PUSH BC");
-                        }
-
-                        [Operand::DE, Operand::none] => {
-                            println!("PUSH DE");
-                        }
-
-                        [Operand::HL, Operand::none] => {
-                            println!("PUSH HL");
-                        }
-
-                        [Operand::AF, Operand::none] => {
-                            println!("PUSH AF");
-                        }
-
-                        _ => {
-                            eprintln!("Non existing PUSH instruction.");
-                        }
-
+                    [Operand::A, Operand::E] => {
+                        self.ADC(self.E);
                     }
-                }
 
-                Mnemonic::RET => {
-                    if instruction.operands.is_none() {
-                        println!("RET");
+                    [Operand::A, Operand::H] => {
+                        self.ADC(self.H);
                     }
-                    else {
-                        match instruction.operands.as_ref().unwrap() {
 
-                            [Operand::NZ, Operand::none] => {
-                                println!("RET NZ");
-                            }
-
-                            [Operand::Z, Operand::none] => {
-                                println!("RET Z");
-                            }
-
-                            [Operand::NCY, Operand::none] => {
-                                println!("RET NCY");
-                            }
-
-                            [Operand::C, Operand::none] => {
-                                println!("RET C");
-                            }
-
-                            _ => {
-                                eprintln!("Non existing RET instruction.");
-                            }
-                        }
+                    [Operand::A, Operand::L] => {
+                        self.ADC(self.L);
                     }
-                }
 
-                Mnemonic::RETI => {
-                    println!("RETI");
-                }
-
-                Mnemonic::RLA => {
-                    println!("RLA");
-                }
-
-                Mnemonic::RLCA => {
-                    println!("RLCA");
-                }
-
-                Mnemonic::RRA => {
-                    println!("RRA");
-                }
-
-                Mnemonic::RRCA => {
-                    println!("RRCA");
-                }
-
-                Mnemonic::RST => {
-                    match instruction.operands.as_ref().unwrap() {
-
-                        [Operand::vec(0x00), Operand::none] => {
-                            println!("RST $00");
-                        }
-
-                        [Operand::vec(0x08), Operand::none] => {
-                            println!("RST $08");
-                        }
-
-                        [Operand::vec(0x10), Operand::none] => {
-                            println!("RST $10");
-                        }
-
-                        [Operand::vec(0x18), Operand::none] => {
-                            println!("RST $18");
-                        }
-
-                        [Operand::vec(0x20), Operand::none] => {
-                            println!("RST $20");
-                        }
-
-                        [Operand::vec(0x28), Operand::none] => {
-                            println!("RST $28");
-                        }
-
-                        [Operand::vec(0x30), Operand::none] => {
-                            println!("RST $30");
-                        }
-
-                        [Operand::vec(0x38), Operand::none] => {
-                            println!("RST $38");
-                        }
-
-                        _ => {
-                            eprintln!("Non existing RST instruction.");
-                        }
-
+                    [Operand::A, Operand::at_memory_HL] => {
+                        let at_memory_HL = self.databus.borrow().read_memory(self.get_HL());
+                        self.ADC(at_memory_HL);
                     }
-                }
 
-                Mnemonic::SBC => {
-                    match instruction.operands.as_ref().unwrap() {
-
-                        [Operand::A, Operand::B] => {
-                            println!("SBC A, B");
-                        }
-
-                        [Operand::A, Operand::C] => {
-                            println!("SBC A, C");
-                        }
-
-                        [Operand::A, Operand::D] => {
-                            println!("SBC A, D");
-                        }
-
-                        [Operand::A, Operand::E] => {
-                            println!("SBC A, E");
-                        }
-
-                        [Operand::A, Operand::H] => {
-                            println!("SBC A, H");
-                        }
-
-                        [Operand::A, Operand::L] => {
-                            println!("SBC A, L");
-                        }
-
-                        [Operand::A, Operand::at_memory_HL] => {
-                            println!("SBC A, at_memory_HL");
-                        }
-
-                        [Operand::A, Operand::A] => {
-                            println!("SBC A, A");
-                        }
-
-                        [Operand::A, Operand::n8] => {
-                            println!("SBC A, n8");
-                        }
-
-                        _ => {
-                            eprintln!("Non existing SBC instruction.");
-                        }
+                    [Operand::A, Operand::A] => {
+                        self.ADC(self.A);
                     }
-                }
 
-                Mnemonic::SCF => {
-                    println!("SCF");
-                }
-
-                Mnemonic::STOP => {
-                    println!("STOP");
-                }
-
-                Mnemonic::SUB => {
-                    match instruction.operands.as_ref().unwrap() {
-
-                        [Operand::A, Operand::B] => {
-                            println!("SUB A, B");
-                        }
-
-                        [Operand::A, Operand::C] => {
-                            println!("SUB A, C");
-                        }
-
-                        [Operand::A, Operand::D] => {
-                            println!("SUB A, D");
-                        }
-
-                        [Operand::A, Operand::E] => {
-                            println!("SUB A, E");
-                        }
-
-                        [Operand::A, Operand::H] => {
-                            println!("SUB A, H");
-                        }
-
-                        [Operand::A, Operand::L] => {
-                            println!("SUB A, L");
-                        }
-
-                        [Operand::A, Operand::at_memory_HL] => {
-                            println!("SUB A, at_memory_HL");
-                        }
-
-                        [Operand::A, Operand::A] => {
-                            println!("SUB A, A");
-                        }
-
-                        [Operand::A, Operand::n8] => {
-                            println!("SUB A, n8");
-                        }
-
-                        _ => {
-                            eprintln!("Non existing SUB instruction.");
-                        }
+                    [Operand::A, Operand::n8] => {
+                        self.ADC(self.get_n8());
                     }
-                }
 
-                Mnemonic::XOR => {
-                    match instruction.operands.as_ref().unwrap() {
-
-                        [Operand::A, Operand::B] => {
-                            println!("XOR A, B");
-                        }
-
-                        [Operand::A, Operand::C] => {
-                            println!("XOR A, C");
-                        }
-
-                        [Operand::A, Operand::D] => {
-                            println!("XOR A, D");
-                        }
-
-                        [Operand::A, Operand::E] => {
-                            println!("XOR A, E");
-                        }
-
-                        [Operand::A, Operand::H] => {
-                            println!("XOR A, H");
-                        }
-
-                        [Operand::A, Operand::L] => {
-                            println!("XOR A, L");
-                        }
-
-                        [Operand::A, Operand::at_memory_HL] => {
-                            println!("XOR A, at_memory_HL");
-                        }
-
-                        [Operand::A, Operand::A] => {
-                            println!("XOR A, A");
-                        }
-
-                        [Operand::A, Operand::n8] => {
-                            println!("XOR A, n8");
-                        }
-
-                        _ => {
-                            eprintln!("Non existing XOR instruction.");
-                        }
+                    _ => {
+                        eprintln!("Non existing ADC instruction.");
                     }
-                }
-
-                _ => {
-                    eprintln!("Non existing Instruction.");
                 }
             }
-        }
-       // else {
 
-       // }
+            Mnemonic::ADD => {
+                match instruction.operands.as_ref().unwrap() {
+
+                    [Operand::HL, Operand::BC] => {
+                        self.ADD_16bit(self.get_BC());
+                    }
+
+                    [Operand::HL, Operand::DE] => {
+                        self.ADD_16bit(self.get_DE());
+                    }
+
+                    [Operand::HL, Operand::HL] => {
+                        self.ADD_16bit(self.get_HL());
+                    }
+
+                    [Operand::HL, Operand::SP] => {
+                        self.ADD_16bit(self.sp);
+                    }
+
+                    [Operand::A, Operand::B] => {
+                        self.ADD(self.B);
+                    }
+
+                    [Operand::A, Operand::C] => {
+                        self.ADD(self.C);
+                    }
+
+                    [Operand::A, Operand::D] => {
+                        self.ADD(self.D);
+                    }
+
+                    [Operand::A, Operand::E] => {
+                        self.ADD(self.E);
+                    }
+
+                    [Operand::A, Operand::H] => {
+                        self.ADD(self.H);
+                    }
+
+                    [Operand::A, Operand::L] => {
+                        self.ADD(self.L);
+                    }
+
+                    [Operand::A, Operand::at_memory_HL] => {
+                        let at_memory_HL = self.databus.borrow().read_memory(self.get_HL());
+                        self.ADD(at_memory_HL);
+                    }
+
+                    [Operand::A, Operand::A] => {
+                        self.ADD(self.A);
+                    }
+
+                    [Operand::A, Operand::n8] => {
+                        self.ADD(self.get_n8());
+                    }
+
+                    [Operand::SP, Operand::e8] => {
+                        let e8 = self.get_e8();
+
+                        self.set_z_to(false);
+                        self.set_n_to(false);
+                        self.sp = self.sp.wrapping_add_signed(e8.into());
+                    }
+
+                    _ => {
+                        eprintln!("Non existing ADD instruction.");
+                    }
+
+                }
+            }
+
+            Mnemonic::AND => {
+                match instruction.operands.as_ref().unwrap() {
+
+                    [Operand::A, Operand::B] => {
+                        self.AND(self.B);
+                    }
+
+                    [Operand::A, Operand::C] => {
+                        self.AND(self.C);
+                    }
+
+                    [Operand::A, Operand::D] => {
+                        self.AND(self.D);
+                    }
+
+                    [Operand::A, Operand::E] => {
+                        self.AND(self.E);
+                    }
+
+                    [Operand::A, Operand::H] => {
+                        self.AND(self.H);
+                    }
+
+                    [Operand::A, Operand::L] => {
+                        self.AND(self.L);
+                    }
+
+                    [Operand::A, Operand::at_memory_HL] => {
+                        let at_memory_HL = self.databus.borrow().read_memory(self.get_HL());
+                        self.AND(at_memory_HL);
+                    }
+
+                    [Operand::A, Operand::A] => {
+                        self.AND(self.A);
+                    }
+
+                    [Operand::A, Operand::n8] => {
+                        self.AND(self.get_n8());
+                    }
+
+                    _ => {
+                        eprintln!("Non existing AND instruction.");
+                    }
+                }
+            }
+
+            Mnemonic::CALL => {
+                match instruction.operands.as_ref().unwrap() {
+
+                    [Operand::NZ, Operand::a16] => {
+                        if !self.get_z() {
+                            let a16 = self.get_a16();
+                            self.CALL(a16);
+                        }
+                    }
+
+                    [Operand::Z, Operand::a16] => {
+                        if self.get_z() {
+                            let a16 = self.get_a16();
+                            self.CALL(a16);
+                        }
+                    }
+
+                    [Operand::a16, Operand::none] => {
+                        let a16 = self.get_a16();
+                        self.CALL(a16);
+                    }
+
+                    [Operand::NCY, Operand::a16] => {
+                        if !self.get_c() {
+                            let a16 = self.get_a16();
+                            self.CALL(a16);
+                        }
+                    }
+
+                    [Operand::C, Operand::a16] => {
+                        if self.get_c() {
+                            let a16 = self.get_a16();
+                            self.CALL(a16);
+                        }
+                    }
+
+                    _ => {
+                        eprintln!("Non existing CALL instruction.");
+                    }
+                }
+            }
+
+            Mnemonic::CCF => {
+                self.flip_c();
+            }
+
+            Mnemonic::CP => {
+                match instruction.operands.as_ref().unwrap() {
+
+                    [Operand::A, Operand::B] => {
+                        self.CP(self.B);
+                    }
+
+                    [Operand::A, Operand::C] => {
+                        self.CP(self.C);
+                    }
+
+                    [Operand::A, Operand::D] => {
+                        self.CP(self.D);
+                    }
+
+                    [Operand::A, Operand::E] => {
+                        self.CP(self.E);
+                    }
+
+                    [Operand::A, Operand::H] => {
+                        self.CP(self.H);
+                    }
+
+                    [Operand::A, Operand::L] => {
+                        self.CP(self.L);
+                    }
+
+                    [Operand::A, Operand::at_memory_HL] => {
+                        let at_memory_HL = self.databus.borrow().read_memory(self.get_HL());
+                        self.CP(at_memory_HL);
+                    }
+
+                    [Operand::A, Operand::A] => {
+                        self.set_z_to(true);
+                        self.set_c_to(false);
+                        self.set_h_to(false);
+                        self.set_n_to(true);
+                    }
+
+                    [Operand::A, Operand::n8] => {
+                        self.CP(self.get_n8());
+                    }
+
+                    _ => {
+                        eprintln!("Non existing CP instruction.");
+                    }
+                }
+            }
+
+            Mnemonic::CPL => {
+                self.A = !self.A;
+            }
+            Mnemonic::DAA => {
+                self.DAA();
+            }
+
+            Mnemonic::DEC => {
+                match instruction.operands.as_ref().unwrap() {
+
+                    [Operand::B, Operand::none] => {
+                        self.B = self.DEC(self.B);
+                    }
+
+                    [Operand::BC, Operand::none] => {
+                        let mut BC = self.get_BC();
+                        BC = self.DEC_16bit(BC);
+                        self.B = (BC >> 8) as u8;
+                        self.C = (BC & 0xFF) as u8;
+                    }
+
+                    [Operand::C, Operand::none] => {
+                        self.C = self.DEC(self.C);
+                    }
+
+                    [Operand::D, Operand::none] => {
+                        self.D = self.DEC(self.D);
+                    }
+
+                    [Operand::DE, Operand::none] => {
+                        let mut DE = self.get_DE();
+                        DE = self.DEC_16bit(DE);
+                        self.D = (DE >> 8) as u8;
+                        self.E = (DE & 0xFF) as u8;
+                    }
+
+                    [Operand::E, Operand::none] => {
+                        self.E = self.DEC(self.E);
+                    }
+
+                    [Operand::H, Operand::none] => {
+                        self.H = self.DEC(self.H);
+                    }
+
+                    [Operand::HL, Operand::none] => {
+                        let mut HL = self.get_HL();
+                        HL = self.DEC_16bit(HL);
+                        self.H = (HL >> 8) as u8;
+                        self.L = (HL & 0xFF) as u8;
+                    }
+
+                    [Operand::L, Operand::none] => {
+                        self.L = self.DEC(self.L);
+                    }
+
+                    [Operand::at_memory_HL, Operand::none] => {
+                        let HL = self.get_HL();
+                        let mut at_memory_HL = self.databus.borrow().read_memory(HL);
+                        at_memory_HL = self.DEC(at_memory_HL);
+                        self.databus.borrow_mut().write_memory(at_memory_HL, HL);
+                    }
+
+                    [Operand::SP, Operand::none] => {
+                        self.sp = self.DEC_16bit(self.sp);
+                    }
+
+                    [Operand::A, Operand::none] => {
+                        self.A = self.DEC(self.A);
+                    }
+
+                    _ => {
+                        eprintln!("Non existing DEC instruction.");
+                    }
+                }
+            }
+
+            Mnemonic::DI => {
+                //This is some fucky shit
+                let next_instruction = self.databus.borrow().read_memory(self.pc.wrapping_add(1));
+                self.exec_instruction(next_instruction);
+                self.IME = false;
+            }
+
+            Mnemonic::EI => {
+                //This is some fucky shit
+                let next_instruction = self.databus.borrow().read_memory(self.pc.wrapping_add(1));
+                self.exec_instruction(next_instruction);
+                self.IME = true;
+            }
+
+            Mnemonic::HALT => {
+                if self.IME {
+                    self.is_halted = true;
+                }
+                else {
+                    let IE = self.databus.borrow().read_memory(0xFFFF);
+                    let IF = self.databus.borrow().read_memory(0xFF0F);
+
+                    if (IE & IF) == 0 {
+
+                    }
+
+                }
+            }
+
+            Mnemonic::INC => {
+                match instruction.operands.as_ref().unwrap() {
+
+                    [Operand::BC, Operand::none] => {
+                        let mut BC = self.get_BC();
+                        BC = self.INC_16bit(BC);
+                        self.B = (BC >> 8) as u8;
+                        self.C = (BC & 0xFF) as u8;
+                    }
+
+                    [Operand::B, Operand::none] => {
+                        self.B = self.INC(self.B);
+                    }
+
+                    [Operand::C, Operand::none] => {
+                        self.C = self.INC(self.C);
+                    }
+
+                    [Operand::DE, Operand::none] => {
+                        let mut DE = self.get_DE();
+                        DE = self.INC_16bit(DE);
+                        self.D = (DE >> 8) as u8;
+                        self.E = (DE & 0xFF) as u8;
+                    }
+
+                    [Operand::D, Operand::none] => {
+                        self.D = self.INC(self.D);
+                    }
+
+                    [Operand::E, Operand::none] => {
+                        self.E = self.INC(self.E);
+                    }
+
+                    [Operand::HL, Operand::none] => {
+                        let mut HL = self.get_HL();
+                        HL = self.INC_16bit(HL);
+                        self.H = (HL >> 8) as u8;
+                        self.L = (HL & 0xFF) as u8;
+                    }
+
+                    [Operand::H, Operand::none] => {
+                        self.H = self.INC(self.H);
+                    }
+
+                    [Operand::L, Operand::none] => {
+                        self.L = self.INC(self.L);
+                    }
+
+                    [Operand::SP, Operand::none] => {
+                        self.sp = self.INC_16bit(self.sp);
+                    }
+
+                    [Operand::at_memory_HL, Operand::none] => {
+                        let HL = self.get_HL();
+                        let mut at_memory_HL = self.databus.borrow().read_memory(HL);
+                        at_memory_HL = self.INC(at_memory_HL);
+                        self.databus.borrow_mut().write_memory(at_memory_HL, HL);
+                    }
+
+                    [Operand::A, Operand::none] => {
+                        self.A = self.INC(self.A);
+                    }
+
+                    _ => {
+                        eprintln!("Non existing INC instruction.");
+                    }
+                }
+            }
+
+            Mnemonic::JP => {
+                match instruction.operands.as_ref().unwrap() {
+
+                    [Operand::NZ, Operand::a16] => {
+                        if !self.get_z() {
+                            let a16 = self.get_a16();
+                            self.pc = a16;
+                        }
+                    }
+
+                    [Operand::a16, Operand::none] => {
+                        let a16 = self.get_a16();
+                        self.pc = a16;
+                    }
+
+                    [Operand::Z, Operand::a16] => {
+                        if self.get_z() {
+                            let a16 = self.get_a16();
+                            self.pc = a16;
+                        }
+                    }
+
+                    [Operand::NCY, Operand::a16] => {
+                        if !self.get_c() {
+                            let a16 = self.get_a16();
+                            self.pc = a16;
+                        }
+                    }
+
+                    [Operand::C, Operand::a16] => {
+                        if self.get_c() {
+                            let a16 = self.get_a16();
+                            self.pc = a16;
+                        }
+                    }
+
+                    [Operand::HL, Operand::none] => {
+                        self.pc = self.get_HL();
+                    }
+
+                    _ => {
+                        eprintln!("Non existing JP instruction.");
+                    }
+
+                }
+            }
+
+            Mnemonic::JR => {
+                let e8 = self.get_e8();
+                match instruction.operands.as_ref().unwrap() {
+
+                    [Operand::e8, Operand::none] => {
+                        self.pc = self.pc.wrapping_add_signed(e8.into());
+                    }
+
+                    [Operand::NZ, Operand::e8] => {
+                        if !self.get_z() {
+                            self.pc = self.pc.wrapping_add_signed(e8.into());
+                        }
+                    }
+
+                    [Operand::Z, Operand::e8] => {
+                        if self.get_z() {
+                            self.pc = self.pc.wrapping_add_signed(e8.into());
+                        }
+                    }
+
+                    [Operand::NCY, Operand::e8] => {
+                        if !self.get_c() {
+                            self.pc = self.pc.wrapping_add_signed(e8.into());
+                        }
+                    }
+
+                    [Operand::C, Operand::e8] => {
+                        if self.get_c() {
+                            self.pc = self.pc.wrapping_add_signed(e8.into());
+                        }
+                    }
+
+                    _ => {
+                        eprintln!("Non existing JR instruction.");
+                    }
+                }
+            }
+
+            Mnemonic::LD => {
+                match instruction.operands.as_ref().unwrap() {
+                    [Operand::BC, Operand::n16] => {
+                        let n16_bytes = self.get_n16_bytes();
+                        self.B = n16_bytes[0];
+                        self.C = n16_bytes[1];
+                    }
+
+                    [Operand::at_memory_BC, Operand::A] => {
+                        self.databus.borrow_mut().write_memory(self.A, self.get_BC());
+                    }
+
+                    [Operand::B, Operand::n8] => {
+                        self.B = self.get_n8();
+                    }
+
+                    [Operand::at_memory_a16, Operand::SP] => {
+                        let a16 = self.get_a16();
+                        let mut databus_borrow = self.databus.borrow_mut();
+                        databus_borrow.write_memory((self.sp & 0x00FF) as u8, a16);
+                        databus_borrow.write_memory((self.sp >> 8) as u8, a16 + 1);
+                    }
+
+                    [Operand::A, Operand::at_memory_BC] => {
+                        self.A = self.databus.borrow().read_memory(self.get_BC());
+                    }
+
+                    [Operand::C, Operand::n8] => {
+                        self.C = self.get_n8();
+                    }
+
+                    [Operand::DE, Operand::n16] => {
+                        let n16_bytes = self.get_n16_bytes();
+                        self.D = n16_bytes[0];
+                        self.E = n16_bytes[1];
+                    }
+
+                    [Operand::at_memory_DE, Operand::A] => {
+                        self.databus.borrow_mut().write_memory(self.A, self.get_DE());
+                    }
+
+                    [Operand::D, Operand::n8] => {
+                        self.D = self.get_n8();
+                    }
+
+                    [Operand::A, Operand::at_memory_DE] => {
+                        self.A = self.databus.borrow().read_memory(self.get_DE());
+                    }
+
+                    [Operand::E, Operand::n8] => {
+                        self.E = self.get_n8();
+                    }
+
+                    [Operand::HL, Operand::n16] => {
+                        let n16_bytes = self.get_n16_bytes();
+                        self.H = n16_bytes[0];
+                        self.L = n16_bytes[1];
+                    }
+
+                    [Operand::at_memory_HLI, Operand::A] => {
+                        self.databus.borrow_mut().write_memory(self.A, self.get_HL());
+                    }
+
+                    [Operand::H, Operand::n8] => {
+                        self.H = self.get_n8();
+                    }
+
+                    [Operand::A, Operand::at_memory_HLI] => {
+                        self.A = self.databus.borrow().read_memory(self.get_HL());
+                    }
+
+                    [Operand::L, Operand::n8] => {
+                        self.L = self.get_n8();
+                    }
+
+                    [Operand::SP, Operand::n16] => {
+                        self.sp = self.get_n16();
+                    }
+
+                    [Operand::at_memory_HLD, Operand::A] => {
+                        self.databus.borrow_mut().write_memory(self.A, self.get_HL());
+                    }
+
+                    [Operand::at_memory_HL, Operand::n8] => {
+                        let n8 = self.get_n8();
+                        let HL = self.get_HL();
+                        self.databus.borrow_mut().write_memory(n8, HL);
+                    }
+
+                    [Operand::A, Operand::at_memory_HLD] => {
+                        self.A = self.databus.borrow().read_memory(self.get_HL());
+                    }
+
+                    [Operand::A, Operand::n8] => {
+                        self.A = self.get_n8();
+                    }
+
+                    [Operand::B, Operand::B] => {
+                    }
+
+                    [Operand::B, Operand::C] => {
+                        self.B = self.C;
+                    }
+
+                    [Operand::B, Operand::D] => {
+                        self.B = self.D;
+                    }
+
+                    [Operand::B, Operand::E] => {
+                        self.B = self.E;
+                    }
+
+                    [Operand::B, Operand::H] => {
+                        self.B = self.H;
+                    }
+
+                    [Operand::B, Operand::L] => {
+                        self.B = self.L;
+                    }
+
+                    [Operand::B, Operand::at_memory_HL] => {
+                        self.B = self.databus.borrow().read_memory(self.get_HL());
+                    }
+
+                    [Operand::B, Operand::A] => {
+                        self.B = self.A;
+                    }
+
+                    [Operand::C, Operand::B] => {
+                        self.C = self.B;
+                    }
+
+                    [Operand::C, Operand::C] => {
+                    }
+
+                    [Operand::C, Operand::D] => {
+                        self.C = self.D;
+                    }
+
+                    [Operand::C, Operand::E] => {
+                        self.C = self.E;
+                    }
+
+                    [Operand::C, Operand::H] => {
+                        self.C = self.H;
+                    }
+
+                    [Operand::C, Operand::L] => {
+                        self.C = self.L;
+                    }
+
+                    [Operand::C, Operand::at_memory_HL] => {
+                        self.C = self.databus.borrow().read_memory(self.get_HL());
+                    }
+
+                    [Operand::C, Operand::A] => {
+                        self.C = self.A;
+                    }
+
+                    [Operand::D, Operand::B] => {
+                        self.D = self.B;
+                    }
+
+                    [Operand::D, Operand::C] => {
+                        self.D = self.C;
+                    }
+
+                    [Operand::D, Operand::D] => {
+                    }
+
+                    [Operand::D, Operand::E] => {
+                        self.D = self.E;
+                    }
+
+                    [Operand::D, Operand::H] => {
+                        self.D = self.H;
+                    }
+
+                    [Operand::D, Operand::L] => {
+                        self.D = self.L;
+                    }
+
+                    [Operand::D, Operand::at_memory_HL] => {
+                        self.D = self.databus.borrow().read_memory(self.get_HL());
+                    }
+
+                    [Operand::D, Operand::A] => {
+                        self.D = self.A;
+                    }
+
+                    [Operand::E, Operand::B] => {
+                        self.E = self.B;
+                    }
+
+                    [Operand::E, Operand::C] => {
+                        self.E = self.C;
+                    }
+
+                    [Operand::E, Operand::D] => {
+                        self.E = self.D;
+                    }
+
+                    [Operand::E, Operand::E] => {
+                    }
+
+                    [Operand::E, Operand::H] => {
+                        self.E = self.H;
+                    }
+
+                    [Operand::E, Operand::L] => {
+                        self.E = self.L;
+                    }
+
+                    [Operand::E, Operand::at_memory_HL] => {
+                        self.E = self.databus.borrow().read_memory(self.get_HL());
+                    }
+
+                    [Operand::E, Operand::A] => {
+                        self.E = self.A;
+                    }
+
+                    [Operand::H, Operand::B] => {
+                        self.H = self.B;
+                    }
+
+                    [Operand::H, Operand::C] => {
+                        self.H = self.C;
+                    }
+
+                    [Operand::H, Operand::D] => {
+                        self.H = self.D;
+                    }
+
+                    [Operand::H, Operand::E] => {
+                        self.H = self.E;
+                    }
+
+                    [Operand::H, Operand::H] => {
+                    }
+
+                    [Operand::H, Operand::L] => {
+                        self.H = self.L;
+                    }
+
+                    [Operand::H, Operand::at_memory_HL] => {
+                        self.H = self.databus.borrow().read_memory(self.get_HL());
+                    }
+
+                    [Operand::H, Operand::A] => {
+                        self.H = self.A;
+                    }
+
+                    [Operand::L, Operand::B] => {
+                        self.L = self.B;
+                    }
+
+                    [Operand::L, Operand::C] => {
+                        self.L = self.C;
+                    }
+
+                    [Operand::L, Operand::D] => {
+                        self.L = self.D;
+                    }
+
+                    [Operand::L, Operand::E] => {
+                        self.L = self.E;
+                    }
+
+                    [Operand::L, Operand::H] => {
+                        self.L = self.H;
+                    }
+
+                    [Operand::L, Operand::L] => {
+                    }
+
+                    [Operand::L, Operand::at_memory_HL] => {
+                        self.L = self.databus.borrow().read_memory(self.get_HL());
+                    }
+
+                    [Operand::L, Operand::A] => {
+                        self.L = self.A;
+                    }
+
+                    [Operand::at_memory_HL, Operand::B] => {
+                        self.databus.borrow_mut().write_memory(self.B, self.get_HL());
+                    }
+
+                    [Operand::at_memory_HL, Operand::C] => {
+                        self.databus.borrow_mut().write_memory(self.C, self.get_HL());
+                    }
+
+                    [Operand::at_memory_HL, Operand::D] => {
+                        self.databus.borrow_mut().write_memory(self.D, self.get_HL());
+                    }
+
+                    [Operand::at_memory_HL, Operand::E] => {
+                        self.databus.borrow_mut().write_memory(self.E, self.get_HL());
+                    }
+
+                    [Operand::at_memory_HL, Operand::H] => {
+                        self.databus.borrow_mut().write_memory(self.H, self.get_HL());
+                    }
+
+                    [Operand::at_memory_HL, Operand::L] => {
+                        self.databus.borrow_mut().write_memory(self.L, self.get_HL());
+                    }
+
+                    [Operand::at_memory_HL, Operand::A] => {
+                        self.databus.borrow_mut().write_memory(self.A, self.get_HL());
+                    }
+
+                    [Operand::A, Operand::B] => {
+                        self.A = self.B;
+                    }
+
+                    [Operand::A, Operand::C] => {
+                        self.A = self.C;
+                    }
+
+                    [Operand::A, Operand::D] => {
+                        self.A = self.D;
+                    }
+
+                    [Operand::A, Operand::E] => {
+                        self.A = self.E;
+                    }
+
+                    [Operand::A, Operand::H] => {
+                        self.A = self.H;
+                    }
+
+                    [Operand::A, Operand::L] => {
+                        self.A = self.L;
+                    }
+
+                    [Operand::A, Operand::at_memory_HL] => {
+                        self.A = self.databus.borrow().read_memory(self.get_HL());
+                    }
+
+                    [Operand::A, Operand::A] => {
+                    }
+
+                    [Operand::at_memory_C, Operand::A] => {
+                        self.databus.borrow_mut().write_memory(self.A, self.C as u16);
+                    }
+
+                    [Operand::at_memory_a16, Operand::A] => {
+                        let a16 = self.get_a16();
+                        self.databus.borrow_mut().write_memory(self.A,a16);
+                    }
+
+                    [Operand::A, Operand::at_memory_C] => {
+                        self.A = self.databus.borrow().read_memory(self.C as u16);
+                    }
+
+                    [Operand::HL, Operand::SP_plus_e8] => {
+                        //This is some fucky stuff
+                        let e8 = self.get_e8();
+                        let SP_plus_e8 = self.sp.overflowing_add_signed(e8.into());
+
+                        if SP_plus_e8.1 {
+                            self.set_c_to(true);
+                        }
+                        if e8 > 0 && ((e8 & 0x0F) as u8 + (self.sp & 0x0F) as u8) >= 0x10 {
+                            self.set_h_to(true);
+                        }
+                        //half borrow. this may be uneeded
+                        if e8 < 0 && ((e8.unsigned_abs() & 0x0F) > (self.sp & 0x0F) as u8){
+                            self.set_h_to(true);
+                        }
+                        self.set_z_to(false);
+                        self.set_h_to(false);
+
+                        self.H = (SP_plus_e8.0 >> 8) as u8;
+                        self.L = (SP_plus_e8.0 & 0xFF) as u8;
+                    }
+
+                    [Operand::SP, Operand::HL] => {
+                        self.sp = self.get_HL();
+                    }
+
+                    [Operand::A, Operand::at_memory_a16] => {
+                        self.A = self.databus.borrow().read_memory(self.get_a16());
+                    }
+
+                    _ => {
+                        eprintln!("Non existing LD instruction.");
+                    }
+                }
+            }
+
+            Mnemonic::LDH => {
+                let a8 = self.get_n8();
+                match instruction.operands.as_ref().unwrap() {
+
+                    [Operand::at_memory_a8, Operand::A] => {
+                        self.databus.borrow_mut().write_memory(self.A, 0xFF00 + a8 as u16);
+                    }
+
+                    [Operand::A, Operand::at_memory_a8] => {
+                        self.A = self.databus.borrow().read_memory(0xFF00 + a8 as u16);
+                    }
+
+                    _ => {
+                        eprintln!("Non existing LDH instruction.");
+                    }
+
+                }
+
+            }
+
+            Mnemonic::NOP => {
+            }
+
+            Mnemonic::OR => {
+                match instruction.operands.as_ref().unwrap() {
+
+                    [Operand::A, Operand::B] => {
+                        self.A = self.OR(self.B);
+                    }
+
+                    [Operand::A, Operand::C] => {
+                        self.A = self.OR(self.C);
+                    }
+
+                    [Operand::A, Operand::D] => {
+                        self.A = self.OR(self.D);
+                    }
+
+                    [Operand::A, Operand::E] => {
+                        self.A = self.OR(self.E);
+                    }
+
+                    [Operand::A, Operand::H] => {
+                        self.A = self.OR(self.H);
+                    }
+
+                    [Operand::A, Operand::L] => {
+                        self.A = self.OR(self.L);
+                    }
+
+                    [Operand::A, Operand::at_memory_HL] => {
+                        let at_memory_HL = self.databus.borrow().read_memory(self.get_HL());
+                        self.A = self.OR(at_memory_HL);
+                    }
+
+                    [Operand::A, Operand::A] => {
+                        self.A = self.OR(self.A);
+                    }
+
+                    [Operand::A, Operand::n8] => {
+                        self.A = self.OR(self.get_n8());
+                    }
+
+                    _ => {
+                        eprintln!("Non existing OR instruction.");
+                    }
+                }
+            }
+
+            Mnemonic::POP => {
+                let (msb, lsb) = self.POP();
+                match instruction.operands.as_ref().unwrap() {
+
+                    [Operand::BC, Operand::none] => {
+                        self.B = msb;
+                        self.C = lsb;
+                    }
+
+                    [Operand::DE, Operand::none] => {
+                        self.D = msb;
+                        self.E = lsb;
+                    }
+
+                    [Operand::HL, Operand::none] => {
+                        self.H = msb;
+                        self.L = lsb;
+                    }
+
+                    [Operand::AF, Operand::none] => {
+                        self.A = msb;
+                        self.F = lsb;
+                    }
+
+                    _ => {
+                        eprintln!("Non existing POP instruction.");
+                    }
+                }
+            }
+
+            Mnemonic::PREFIX => {
+                println!("PREFIX");
+            }
+
+            Mnemonic::PUSH => {
+                match instruction.operands.as_ref().unwrap() {
+
+                    [Operand::BC, Operand::none] => {
+                        let BC = self.get_BC();
+                        self.PUSH(BC);
+                    }
+
+                    [Operand::DE, Operand::none] => {
+                        let DE = self.get_DE();
+                        self.PUSH(DE);
+                    }
+
+                    [Operand::HL, Operand::none] => {
+                        let HL = self.get_HL();
+                        self.PUSH(HL);
+                    }
+
+                    [Operand::AF, Operand::none] => {
+                        let AF = self.get_AF();
+                        self.PUSH(AF);
+                    }
+
+                    _ => {
+                        eprintln!("Non existing PUSH instruction.");
+                    }
+
+                }
+            }
+
+            Mnemonic::RET => {
+                let mut new_pc: u16 = 0x0000;
+
+                if instruction.operands.is_none() {
+                    let (msb, lsb) = self.POP();
+
+                    new_pc |= msb as u16;
+                    new_pc <<= 8;
+                    new_pc |= lsb as u16;
+                    self.pc = new_pc; 
+                }
+                else {
+                    match instruction.operands.as_ref().unwrap() {
+
+                        [Operand::NZ, Operand::none] => {
+                            if !self.get_z() {
+                                let (msb, lsb) = self.POP();
+
+                                new_pc |= msb as u16;
+                                new_pc <<= 8;
+                                new_pc |= lsb as u16;
+                                self.pc = new_pc; 
+                            }
+                        }
+
+                        [Operand::Z, Operand::none] => {
+                            if self.get_z() {
+                                let (msb, lsb) = self.POP();
+
+                                new_pc |= msb as u16;
+                                new_pc <<= 8;
+                                new_pc |= lsb as u16;
+                                self.pc = new_pc; 
+                            }
+                        }
+
+                        [Operand::NCY, Operand::none] => {
+                            if !self.get_c() {
+                                let (msb, lsb) = self.POP();
+
+                                new_pc |= msb as u16;
+                                new_pc <<= 8;
+                                new_pc |= lsb as u16;
+                                self.pc = new_pc; 
+                            }
+                        }
+
+                        [Operand::C, Operand::none] => {
+                            if self.get_c() {
+                                let (msb, lsb) = self.POP();
+
+                                new_pc |= msb as u16;
+                                new_pc <<= 8;
+                                new_pc |= lsb as u16;
+                                self.pc = new_pc; 
+                            }
+                        }
+
+                        _ => {
+                            eprintln!("Non existing RET instruction.");
+                        }
+                    }
+                }
+            }
+
+            Mnemonic::RETI => {
+            }
+
+            //RLA and RLCA, RRA and RRCA implimintations may have to be swapped ??
+            Mnemonic::RLA => {
+                let msb =  (self.A & 0x80) >> 7;
+                let c = self.get_c() as u8;
+
+                self.set_z_to(false);
+                self.set_n_to(false);
+                self.set_h_to(false);
+                self.set_c_to(msb != 0);
+
+                self.A = (self.A << 1) | c;
+            }
+
+            Mnemonic::RLCA => {
+                let msb = (self.A & 0x80) >> 7;
+
+                self.set_z_to(false);
+                self.set_n_to(false);
+                self.set_h_to(false);
+                self.set_c_to(msb != 0);
+
+                self.A = self.A.rotate_left(1);
+            }
+
+            Mnemonic::RRA => {
+                let lsb =  self.A & 0x1;
+                let c = (self.get_c() as u8) << 7;
+
+                self.set_z_to(false);
+                self.set_n_to(false);
+                self.set_h_to(false);
+                self.set_c_to(lsb != 0);
+
+                self.A = (self.A >> 1) | c;
+            }
+
+            Mnemonic::RRCA => {
+                let lsb =  self.A & 0x1;
+
+                self.set_z_to(false);
+                self.set_n_to(false);
+                self.set_h_to(false);
+                self.set_c_to(lsb != 0);
+
+                self.A = self.A.rotate_right(1);
+            }
+
+            Mnemonic::RST => {
+                //https://retrocomputing.stackexchange.com/questions/15116/how-does-the-rst-operation-of-gameboy-sharp-lr35902-work
+                let mut databus_borrow = self.databus.borrow_mut();
+                self.sp -= 1;
+                databus_borrow.write_memory(((self.pc) >> 8) as u8, self.sp);
+                self.sp -= 1;
+                databus_borrow.write_memory(((self.pc) & 0xFF) as u8, self.sp);
+                match instruction.operands.as_ref().unwrap() {
+
+                    [Operand::vec(0x00), Operand::none] => {
+                        self.pc = 0x0;
+                    }
+
+                    [Operand::vec(0x08), Operand::none] => {
+                        self.pc = 0x0008;
+                    }
+
+                    [Operand::vec(0x10), Operand::none] => {
+                        self.pc = 0x0010;
+                    }
+
+                    [Operand::vec(0x18), Operand::none] => {
+                        self.pc = 0x0018;
+                    }
+
+                    [Operand::vec(0x20), Operand::none] => {
+                        self.pc = 0x0020;
+                    }
+
+                    [Operand::vec(0x28), Operand::none] => {
+                        self.pc = 0x0028;
+                    }
+
+                    [Operand::vec(0x30), Operand::none] => {
+                        self.pc = 0x0030;
+                    }
+
+                    [Operand::vec(0x38), Operand::none] => {
+                        self.pc = 0x0038;
+                    }
+
+                    _ => {
+                        eprintln!("Non existing RST instruction.");
+                    }
+
+                }
+            }
+
+            Mnemonic::SBC => {
+                match instruction.operands.as_ref().unwrap() {
+
+                    [Operand::A, Operand::B] => {
+                        self.A = self.SBC(self.B);
+                    }
+
+                    [Operand::A, Operand::C] => {
+                        self.A = self.SBC(self.C);
+                    }
+
+                    [Operand::A, Operand::D] => {
+                        self.A = self.SBC(self.D);
+                    }
+
+                    [Operand::A, Operand::E] => {
+                        self.A = self.SBC(self.E);
+                    }
+
+                    [Operand::A, Operand::H] => {
+                        self.A = self.SBC(self.H);
+                    }
+
+                    [Operand::A, Operand::L] => {
+                        self.A = self.SBC(self.L);
+                    }
+
+                    [Operand::A, Operand::at_memory_HL] => {
+                        let HL = self.get_HL();
+                        let at_memory_HL = self.databus.borrow().read_memory(HL);
+                        self.A = self.SBC(at_memory_HL);
+                    }
+
+                    [Operand::A, Operand::A] => {
+                        self.A = self.SBC(self.A);
+                    }
+
+                    [Operand::A, Operand::n8] => {
+                        self.A = self.SBC(self.get_n8());
+                    }
+
+                    _ => {
+                        eprintln!("Non existing SBC instruction.");
+                    }
+                }
+            }
+
+            Mnemonic::SCF => {
+                self.set_n_to(false);
+                self.set_h_to(false);
+                self.set_c_to(true);
+            }
+
+            Mnemonic::STOP => {
+            }
+
+            Mnemonic::SUB => {
+                match instruction.operands.as_ref().unwrap() {
+
+                    [Operand::A, Operand::B] => {
+                        self.A = self.SUB(self.B);
+                    }
+
+                    [Operand::A, Operand::C] => {
+                        self.A = self.SUB(self.C);
+                    }
+
+                    [Operand::A, Operand::D] => {
+                        self.A = self.SUB(self.D);
+                    }
+
+                    [Operand::A, Operand::E] => {
+                        self.A = self.SUB(self.E);
+                    }
+
+                    [Operand::A, Operand::H] => {
+                        self.A = self.SUB(self.H);
+                    }
+
+                    [Operand::A, Operand::L] => {
+                        self.A = self.SUB(self.L);
+                    }
+
+                    [Operand::A, Operand::at_memory_HL] => {
+                        let HL = self.get_HL();
+                        let at_memory_HL = self.databus.borrow().read_memory(HL);
+                        self.A = self.SUB(at_memory_HL);
+                    }
+
+                    [Operand::A, Operand::A] => {
+                        self.A = self.SUB(self.A);
+                    }
+
+                    [Operand::A, Operand::n8] => {
+                        self.A = self.SUB(self.get_n8());
+                    }
+
+                    _ => {
+                        eprintln!("Non existing SUB instruction.");
+                    }
+                }
+            }
+
+            Mnemonic::XOR => {
+                match instruction.operands.as_ref().unwrap() {
+
+                    [Operand::A, Operand::B] => {
+                        self.A = self.XOR(self.B);
+                    }
+
+                    [Operand::A, Operand::C] => {
+                        self.A = self.XOR(self.C);
+                    }
+
+                    [Operand::A, Operand::D] => {
+                        self.A = self.XOR(self.D);
+                    }
+
+                    [Operand::A, Operand::E] => {
+                        self.A = self.XOR(self.E);
+                    }
+
+                    [Operand::A, Operand::H] => {
+                        self.A = self.XOR(self.H);
+                    }
+
+                    [Operand::A, Operand::L] => {
+                        self.A = self.XOR(self.L);
+                    }
+
+                    [Operand::A, Operand::at_memory_HL] => {
+                        let HL = self.get_HL();
+                        let at_memory_HL = self.databus.borrow().read_memory(HL);
+                        self.A = self.XOR(at_memory_HL);
+                    }
+
+                    [Operand::A, Operand::A] => {
+                        self.A = self.XOR(self.A);
+                    }
+
+                    [Operand::A, Operand::n8] => {
+                        self.A = self.XOR(self.get_n8());
+                    }
+
+                    _ => {
+                        eprintln!("Non existing XOR instruction.");
+                    }
+                }
+            }
+
+            _ => {
+                eprintln!("Non existing Instruction.");
+            }
+        }
+       if crate::DEBUG {
+           println!("
+           CPU STATE AFTER:
+               {}", self);
+       }
     }
 }
