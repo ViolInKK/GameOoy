@@ -1,5 +1,5 @@
 use std::{cell::RefCell, rc::Rc};
-use crate::cpu_instructions::{Mnemonic, Operand, INSTRUCTIONS_MAP};
+use crate::cpu_instructions::{cycles_length, Mnemonic, Operand, INSTRUCTIONS_MAP, PREFIXED_INSTRUCTIONS_MAP};
 
 use crate::databus::DataBus;
 
@@ -51,21 +51,21 @@ impl std::fmt::Display for Cpu {
 impl Cpu {
     pub fn new(databus: Rc<RefCell<DataBus>>) -> Cpu {
         Cpu {
-            A: 0x7c,
+            A: 0x01,
             B: 0x00,
-            C: 0x7d,
+            C: 0x13,
             D: 0x00,
             E: 0xD8,
             H: 0x01,
             L: 0x4D,
 
-            F: 0b1000_0000,
+            F: 0b1011_0000,
 
             IME: false,
 
             is_halted: false,
 
-            sp: 0xFFFC,
+            sp: 0xFFFE,
             pc: 0x0100,
 
             databus,
@@ -438,8 +438,128 @@ impl Cpu {
         result
     }
 
-    pub fn exec_instruction(&mut self, instruction_byte: u8) {
+    fn BIT(&mut self, affected_bit: u8, rhs: u8) {
+        let result = (rhs >> affected_bit) & 1;
+
+        if result == 0 {
+            self.set_z_to(true);
+        }
+        self.set_n_to(false);
+        self.set_h_to(true);
+    }
+
+    fn RES(&mut self, affected_bit: u8, rhs: u8) -> u8 {
+        rhs & !(1 << affected_bit)
+    }
+
+    fn SET(&mut self, affected_bit: u8, rhs: u8) -> u8 {
+        rhs | (1 << affected_bit)
+    }
+
+    fn RL(&mut self, rhs: u8) -> u8{
+        let msb =  (rhs & 0x80) >> 7;
+        let c = self.get_c() as u8;
+        let result = (rhs << 1) | c;
+
+        if result == 0 {
+            self.set_z_to(true);
+        }
+        self.set_n_to(false);
+        self.set_h_to(false);
+        self.set_c_to(msb != 0);
+
+        result
+    }
+
+    fn RLC(&mut self, rhs: u8) -> u8 {
+        let msb = (rhs & 0x80) >> 7;
+        let result = rhs.rotate_left(1);
+
+        if result == 0 {
+            self.set_z_to(true);
+        }
+        self.set_n_to(false);
+        self.set_h_to(false);
+        self.set_c_to(msb != 0);
+
+        result
+    }
+
+    fn RR(&mut self, rhs: u8) -> u8 {
+        let lsb =  rhs & 0x1;
+        let c = (self.get_c() as u8) << 7;
+        let result = (rhs >> 1) | c;
+
+        if result == 0 {
+            self.set_z_to(true);
+        }
+        self.set_n_to(false);
+        self.set_h_to(false);
+        self.set_c_to(lsb != 0);
+
+        result
+    }
+
+    fn RRC(&mut self, rhs: u8) -> u8 {
+        let lsb =  rhs & 0x1;
+        let result = rhs.rotate_right(1);
+
+        self.set_z_to(false);
+        self.set_n_to(false);
+        self.set_h_to(false);
+        self.set_c_to(lsb != 0);
+
+        result
+    }
+
+    fn SLA(&mut self, rhs: u8) -> u8 {
+        let msb = (rhs & 0x80) >> 7;
+        let result = rhs << 1;
+
+        if result == 0 {
+            self.set_z_to(true);
+        }
+        self.set_n_to(false);
+        self.set_h_to(false);
+        self.set_c_to(msb != 0);
+        
+        result
+    }
+
+    fn SRA(&mut self, rhs: u8) -> u8 {
+        let lsb =  rhs & 0x1;
+        let result = rhs >> 1;
+
+        if result == 0 {
+            self.set_z_to(true);
+        }
+        self.set_n_to(false);
+        self.set_h_to(false);
+        self.set_c_to(lsb != 0);
+
+        result
+    }
+
+    fn SWAP(&mut self, rhs: u8) -> u8 {
+        let msn = (rhs & 0xF0) >> 4;
+        let lsn = rhs & 0x0F;
+        let result = (lsn << 4) | msn;
+
+        if result == 0 {
+            self.set_z_to(true);
+        }
+        self.set_n_to(false);
+        self.set_h_to(false);
+        self.set_c_to(false);
+
+        result
+    }
+
+    pub fn exec_instruction(&mut self, instruction_byte: u8) -> u8 {
         let instruction = INSTRUCTIONS_MAP.get(&instruction_byte).unwrap();
+        let mut jumped: bool = false;
+        let mut condition_met: bool = false;
+        let mut total_cycles: u8 = 0;
 
         if crate::DEBUG {
             println!("
@@ -621,6 +741,8 @@ impl Cpu {
                         if !self.get_z() {
                             let a16 = self.get_a16();
                             self.CALL(a16);
+                            jumped = true;
+                            condition_met = true;
                         }
                     }
 
@@ -628,18 +750,23 @@ impl Cpu {
                         if self.get_z() {
                             let a16 = self.get_a16();
                             self.CALL(a16);
+                            jumped = true;
+                            condition_met = true;
                         }
                     }
 
                     [Operand::a16, Operand::none] => {
                         let a16 = self.get_a16();
                         self.CALL(a16);
+                        jumped = true;
                     }
 
                     [Operand::NCY, Operand::a16] => {
                         if !self.get_c() {
                             let a16 = self.get_a16();
                             self.CALL(a16);
+                            jumped = true;
+                            condition_met = true;
                         }
                     }
 
@@ -647,6 +774,8 @@ impl Cpu {
                         if self.get_c() {
                             let a16 = self.get_a16();
                             self.CALL(a16);
+                            jumped = true;
+                            condition_met = true;
                         }
                     }
 
@@ -890,18 +1019,23 @@ impl Cpu {
                         if !self.get_z() {
                             let a16 = self.get_a16();
                             self.pc = a16;
+                            jumped = true;
+                            condition_met = true;
                         }
                     }
 
                     [Operand::a16, Operand::none] => {
                         let a16 = self.get_a16();
                         self.pc = a16;
+                        jumped = true;
                     }
 
                     [Operand::Z, Operand::a16] => {
                         if self.get_z() {
                             let a16 = self.get_a16();
                             self.pc = a16;
+                            jumped = true;
+                            condition_met = true;
                         }
                     }
 
@@ -909,6 +1043,8 @@ impl Cpu {
                         if !self.get_c() {
                             let a16 = self.get_a16();
                             self.pc = a16;
+                            jumped = true;
+                            condition_met = true;
                         }
                     }
 
@@ -916,11 +1052,14 @@ impl Cpu {
                         if self.get_c() {
                             let a16 = self.get_a16();
                             self.pc = a16;
+                            jumped = true;
+                            condition_met = true;
                         }
                     }
 
                     [Operand::HL, Operand::none] => {
                         self.pc = self.get_HL();
+                        jumped = true;
                     }
 
                     _ => {
@@ -936,29 +1075,38 @@ impl Cpu {
 
                     [Operand::e8, Operand::none] => {
                         self.pc = self.pc.wrapping_add_signed(e8.into());
+                        jumped = true;
                     }
 
                     [Operand::NZ, Operand::e8] => {
                         if !self.get_z() {
                             self.pc = self.pc.wrapping_add_signed(e8.into());
+                            jumped = true;
+                            condition_met = true;
                         }
                     }
 
                     [Operand::Z, Operand::e8] => {
                         if self.get_z() {
                             self.pc = self.pc.wrapping_add_signed(e8.into());
+                            jumped = true;
+                            condition_met = true;
                         }
                     }
 
                     [Operand::NCY, Operand::e8] => {
                         if !self.get_c() {
                             self.pc = self.pc.wrapping_add_signed(e8.into());
+                            jumped = true;
+                            condition_met = true;
                         }
                     }
 
                     [Operand::C, Operand::e8] => {
                         if self.get_c() {
                             self.pc = self.pc.wrapping_add_signed(e8.into());
+                            jumped = true;
+                            condition_met = true;
                         }
                     }
 
@@ -1459,7 +1607,8 @@ impl Cpu {
             }
 
             Mnemonic::PREFIX => {
-                println!("PREFIX");
+                let instruction_byte = self.databus.borrow().read_memory(self.pc + 1);
+                total_cycles += self.exec_prefixed_instruction(instruction_byte);
             }
 
             Mnemonic::PUSH => {
@@ -1502,6 +1651,7 @@ impl Cpu {
                     new_pc <<= 8;
                     new_pc |= lsb as u16;
                     self.pc = new_pc; 
+                    jumped = true;
                 }
                 else {
                     match instruction.operands.as_ref().unwrap() {
@@ -1513,7 +1663,9 @@ impl Cpu {
                                 new_pc |= msb as u16;
                                 new_pc <<= 8;
                                 new_pc |= lsb as u16;
-                                self.pc = new_pc; 
+                                self.pc = new_pc;
+                                jumped = true;
+                                condition_met = true;
                             }
                         }
 
@@ -1525,6 +1677,8 @@ impl Cpu {
                                 new_pc <<= 8;
                                 new_pc |= lsb as u16;
                                 self.pc = new_pc; 
+                                jumped = true;
+                                condition_met = true;
                             }
                         }
 
@@ -1536,6 +1690,8 @@ impl Cpu {
                                 new_pc <<= 8;
                                 new_pc |= lsb as u16;
                                 self.pc = new_pc; 
+                                jumped = true;
+                                condition_met = true;
                             }
                         }
 
@@ -1547,6 +1703,8 @@ impl Cpu {
                                 new_pc <<= 8;
                                 new_pc |= lsb as u16;
                                 self.pc = new_pc; 
+                                jumped = true;
+                                condition_met = true;
                             }
                         }
 
@@ -1558,6 +1716,15 @@ impl Cpu {
             }
 
             Mnemonic::RETI => {
+                let mut new_pc: u16 = 0x0000;
+                let (msb, lsb) = self.POP();
+
+                new_pc |= msb as u16;
+                new_pc <<= 8;
+                new_pc |= lsb as u16;
+                self.pc = new_pc;
+                self.IME = true;
+                jumped = true;
             }
 
             //RLA and RLCA, RRA and RRCA implimintations may have to be swapped ??
@@ -1809,10 +1976,530 @@ impl Cpu {
                 eprintln!("Non existing Instruction.");
             }
         }
-       if crate::DEBUG {
+
+        if crate::DEBUG {
            println!("
            CPU STATE AFTER:
                {}", self);
        }
+
+        if !jumped {
+            self.pc += instruction.length as u16;
+        }
+
+        match instruction.cycles {
+            cycles_length::non_conditional(cycles) => {
+                total_cycles += cycles;
+            }
+
+            cycles_length::conditional(met_cycles, not_met_cycles) => {
+                if condition_met {
+                    total_cycles += met_cycles;
+                }
+                else {
+                    total_cycles += not_met_cycles;
+                }
+            }
+        }
+
+        total_cycles
+    }
+
+    fn exec_prefixed_instruction(&mut self, instruction_byte: u8) -> u8 {
+        let instruction = PREFIXED_INSTRUCTIONS_MAP.get(&instruction_byte).unwrap();
+
+            println!("
+            PREFIXED INSTRUCTION:
+                {}", instruction);
+
+        let affected_bit: u8 = match instruction.operands.as_ref().unwrap()[0] {
+            Operand::bit_zero => {
+                Some(0)
+            },
+
+            Operand::bit_one => {
+                Some(1)
+            },
+
+            Operand::bit_two => {
+                Some(2)
+            },
+
+            Operand::bit_three => {
+                Some(3)
+            }
+
+            Operand::bit_four => {
+                Some(4)
+            }
+
+            Operand::bit_five => {
+                Some(5)
+            }
+
+            Operand::bit_six => {
+                Some(6)
+            }
+
+            Operand::bit_seven => {
+                Some(7)
+            }
+
+            _ => {
+               None 
+            }
+        }.unwrap_or_default();
+
+        match instruction.mnemonic {
+            Mnemonic::BIT => {
+                match instruction.operands.as_ref().unwrap()[1] {
+
+                    Operand::B => {
+                        self.BIT(affected_bit, self.B);
+                    }
+
+                    Operand::C => {
+                        self.BIT(affected_bit, self.C);
+                    }
+
+                    Operand::D => {
+                        self.BIT(affected_bit, self.D);
+                    }
+
+                    Operand::E => {
+                        self.BIT(affected_bit, self.E);
+                    }
+
+                    Operand::H => {
+                        self.BIT(affected_bit, self.H);
+                    }
+
+                    Operand::L => {
+                        self.BIT(affected_bit, self.L);
+                    }
+
+                    Operand::at_memory_HL => {
+                        let HL = self.get_HL();
+                        let at_memory_HL = self.databus.borrow().read_memory(HL);
+                        self.BIT(affected_bit, at_memory_HL);
+                    }
+
+                    Operand::A => {
+                        self.BIT(affected_bit, self.A);
+                    }
+
+                    _ => {
+                        eprintln!("Non existing BIT instruction.");
+                    }
+                }
+            }
+
+            Mnemonic::RES => {
+                match instruction.operands.as_ref().unwrap()[1] {
+
+                    Operand::B => {
+                        self.B = self.RES(affected_bit, self.B);
+                    }
+
+                    Operand::C => {
+                        self.C = self.RES(affected_bit, self.C);
+                    }
+
+                    Operand::D => {
+                        self.D = self.RES(affected_bit, self.D);
+                    }
+
+                    Operand::E => {
+                        self.E = self.RES(affected_bit, self.E);
+                    }
+
+                    Operand::H => {
+                        self.H = self.RES(affected_bit, self.H);
+                    }
+
+                    Operand::L => {
+                        self.L = self.RES(affected_bit, self.L);
+                    }
+
+                    Operand::at_memory_HL => {
+                        let HL = self.get_HL();
+                        let mut at_memory_HL = self.databus.borrow().read_memory(HL);
+                        at_memory_HL = self.RES(affected_bit, at_memory_HL);
+                        self.databus.borrow_mut().write_memory(at_memory_HL, HL);
+                    }
+
+                    Operand::A => {
+                        self.A = self.RES(affected_bit, self.A);
+                    }
+
+                    _ => {
+                        eprintln!("Non existing RES instruction.");
+                    }
+                }
+            }
+
+            Mnemonic::RL => {
+                match instruction.operands.as_ref().unwrap() {
+
+                    [Operand::B, Operand::none] => {
+                        self.B = self.RL(self.B);
+                    }
+
+                    [Operand::C, Operand::none] => {
+                        self.C = self.RL(self.C);
+                    }
+
+                    [Operand::D, Operand::none] => {
+                        self.D = self.RL(self.D);
+                    }
+
+                    [Operand::E, Operand::none] => {
+                        self.E = self.RL(self.E);
+                    }
+
+                    [Operand::H, Operand::none] => {
+                        self.H = self.RL(self.H);
+                    }
+
+                    [Operand::L, Operand::none] => {
+                        self.L = self.RL(self.L);
+                    }
+
+                    [Operand::at_memory_HL, Operand::none] => {
+                        let HL = self.get_HL();
+                        let mut at_memory_HL = self.databus.borrow().read_memory(HL);
+                        at_memory_HL = self.RL(at_memory_HL);
+                        self.databus.borrow_mut().write_memory(at_memory_HL, HL);
+                    }
+
+                    [Operand::A, Operand::none] => {
+                        self.A = self.RL(self.A);
+                    }
+
+                    _ => {
+                        eprintln!("Non existing RL instruction.");
+                    }
+                }
+            }
+
+            Mnemonic::RLC => {
+                match instruction.operands.as_ref().unwrap() {
+
+                    [Operand::B, Operand::none] => {
+                        self.B = self.RLC(self.B);
+                    }
+
+                    [Operand::C, Operand::none] => {
+                        self.C = self.RLC(self.C);
+                    }
+
+                    [Operand::D, Operand::none] => {
+                        self.D = self.RLC(self.D);
+                    }
+
+                    [Operand::E, Operand::none] => {
+                        self.E = self.RLC(self.E);
+                    }
+
+                    [Operand::H, Operand::none] => {
+                        self.H = self.RLC(self.H);
+                    }
+
+                    [Operand::L, Operand::none] => {
+                        self.L = self.RLC(self.L);
+                    }
+
+                    [Operand::at_memory_HL, Operand::none] => {
+                        let HL = self.get_HL();
+                        let mut at_memory_HL = self.databus.borrow().read_memory(HL);
+                        at_memory_HL = self.RLC(at_memory_HL);
+                        self.databus.borrow_mut().write_memory(at_memory_HL, HL);
+                    }
+
+                    [Operand::A, Operand::none] => {
+                        self.A = self.RLC(self.A);
+                    }
+
+                    _ => {
+                        eprintln!("Non existing RLC instruction.");
+                    }
+                }
+            }
+
+            Mnemonic::RR => {
+                match instruction.operands.as_ref().unwrap() {
+
+                    [Operand::B, Operand::none] => {
+                        self.B = self.RR(self.B);
+                    }
+
+                    [Operand::C, Operand::none] => {
+                        self.C = self.RR(self.C);
+                    }
+
+                    [Operand::D, Operand::none] => {
+                        self.D = self.RR(self.D);
+                    }
+
+                    [Operand::E, Operand::none] => {
+                        self.E = self.RR(self.E);
+                    }
+
+                    [Operand::H, Operand::none] => {
+                        self.H = self.RR(self.H);
+                    }
+
+                    [Operand::L, Operand::none] => {
+                        self.L = self.RR(self.L);
+                    }
+
+                    [Operand::at_memory_HL, Operand::none] => {
+                        let HL = self.get_HL();
+                        let mut at_memory_HL = self.databus.borrow().read_memory(HL);
+                        at_memory_HL = self.RR(at_memory_HL);
+                        self.databus.borrow_mut().write_memory(at_memory_HL, HL);
+                    }
+
+                    [Operand::A, Operand::none] => {
+                        self.A = self.RR(self.A);
+                    }
+
+                    _ => {
+                        eprintln!("Non existing RLC instruction.");
+                    }
+                }
+            }
+
+            Mnemonic::RRC => {
+                match instruction.operands.as_ref().unwrap() {
+
+                    [Operand::B, Operand::none] => {
+                        self.B = self.RRC(self.B);
+                    }
+
+                    [Operand::C, Operand::none] => {
+                        self.C = self.RRC(self.C);
+                    }
+
+                    [Operand::D, Operand::none] => {
+                        self.D = self.RRC(self.D);
+                    }
+
+                    [Operand::E, Operand::none] => {
+                        self.E = self.RRC(self.E);
+                    }
+
+                    [Operand::H, Operand::none] => {
+                        self.H = self.RRC(self.H);
+                    }
+
+                    [Operand::L, Operand::none] => {
+                        self.L = self.RRC(self.L);
+                    }
+
+                    [Operand::at_memory_HL, Operand::none] => {
+                        let HL = self.get_HL();
+                        let mut at_memory_HL = self.databus.borrow().read_memory(HL);
+                        at_memory_HL = self.RRC(at_memory_HL);
+                        self.databus.borrow_mut().write_memory(at_memory_HL, HL);
+                    }
+
+                    [Operand::A, Operand::none] => {
+                        self.A = self.RRC(self.A);
+                    }
+
+                    _ => {
+                        eprintln!("Non existing RLC instruction.");
+                    }
+                }
+            }
+
+            Mnemonic::SET => {
+                match instruction.operands.as_ref().unwrap()[1] {
+
+                    Operand::B => {
+                        self.B = self.SET(affected_bit, self.B);
+                    }
+
+                    Operand::C => {
+                        self.C = self.SET(affected_bit, self.C);
+                    }
+
+                    Operand::D => {
+                        self.D = self.SET(affected_bit, self.D);
+                    }
+
+                    Operand::E => {
+                        self.E = self.SET(affected_bit, self.E);
+                    }
+
+                    Operand::H => {
+                        self.H = self.SET(affected_bit, self.H);
+                    }
+
+                    Operand::L => {
+                        self.L = self.SET(affected_bit, self.L);
+                    }
+
+                    Operand::at_memory_HL => {
+                        let HL = self.get_HL();
+                        let mut at_memory_HL = self.databus.borrow().read_memory(HL);
+                        at_memory_HL = self.SET(affected_bit, at_memory_HL);
+                        self.databus.borrow_mut().write_memory(at_memory_HL, HL);
+                    }
+
+                    Operand::A => {
+                        self.A = self.SET(affected_bit, self.A);
+                    }
+
+                    _ => {
+                        eprintln!("Non existing SET instruction.");
+                    }
+                }
+            }
+
+            Mnemonic::SLA => {
+                match instruction.operands.as_ref().unwrap() {
+
+                    [Operand::B, Operand::none] => {
+                        self.B = self.SLA(self.B);
+                    }
+
+                    [Operand::C, Operand::none] => {
+                        self.C = self.SLA(self.C);
+                    }
+
+                    [Operand::D, Operand::none] => {
+                        self.D = self.SLA(self.D);
+                    }
+
+                    [Operand::E, Operand::none] => {
+                        self.E = self.SLA(self.E);
+                    }
+
+                    [Operand::H, Operand::none] => {
+                        self.H = self.SLA(self.H);
+                    }
+
+                    [Operand::L, Operand::none] => {
+                        self.L = self.SLA(self.L);
+                    }
+
+                    [Operand::at_memory_HL, Operand::none] => {
+                        let HL = self.get_HL();
+                        let mut at_memory_HL = self.databus.borrow().read_memory(HL);
+                        at_memory_HL = self.SLA(at_memory_HL);
+                        self.databus.borrow_mut().write_memory(at_memory_HL, HL);
+                    }
+
+                    [Operand::A, Operand::none] => {
+                        self.A = self.SLA(self.A);
+                    }
+
+                    _ => {
+                        eprintln!("Non existing RLC instruction.");
+                    }
+                }
+            }
+
+            Mnemonic::SRA => {
+                match instruction.operands.as_ref().unwrap() {
+
+                    [Operand::B, Operand::none] => {
+                        self.B = self.SRA(self.B);
+                    }
+
+                    [Operand::C, Operand::none] => {
+                        self.C = self.SRA(self.C);
+                    }
+
+                    [Operand::D, Operand::none] => {
+                        self.D = self.SRA(self.D);
+                    }
+
+                    [Operand::E, Operand::none] => {
+                        self.E = self.SRA(self.E);
+                    }
+
+                    [Operand::H, Operand::none] => {
+                        self.H = self.SRA(self.H);
+                    }
+
+                    [Operand::L, Operand::none] => {
+                        self.L = self.SRA(self.L);
+                    }
+
+                    [Operand::at_memory_HL, Operand::none] => {
+                        let HL = self.get_HL();
+                        let mut at_memory_HL = self.databus.borrow().read_memory(HL);
+                        at_memory_HL = self.SRA(at_memory_HL);
+                        self.databus.borrow_mut().write_memory(at_memory_HL, HL);
+                    }
+
+                    [Operand::A, Operand::none] => {
+                        self.A = self.SRA(self.A);
+                    }
+
+                    _ => {
+                        eprintln!("Non existing RLC instruction.");
+                    }
+                }
+            }
+
+            Mnemonic::SWAP => {
+                match instruction.operands.as_ref().unwrap() {
+
+                    [Operand::B, Operand::none] => {
+                        self.B = self.SWAP(self.B);
+                    }
+
+                    [Operand::C, Operand::none] => {
+                        self.C = self.SWAP(self.C);
+                    }
+
+                    [Operand::D, Operand::none] => {
+                        self.D = self.SWAP(self.D);
+                    }
+
+                    [Operand::E, Operand::none] => {
+                        self.E = self.SWAP(self.E);
+                    }
+
+                    [Operand::H, Operand::none] => {
+                        self.H = self.SWAP(self.H);
+                    }
+
+                    [Operand::L, Operand::none] => {
+                        self.L = self.SWAP(self.L);
+                    }
+
+                    [Operand::at_memory_HL, Operand::none] => {
+                        let HL = self.get_HL();
+                        let mut at_memory_HL = self.databus.borrow().read_memory(HL);
+                        at_memory_HL = self.SWAP(at_memory_HL);
+                        self.databus.borrow_mut().write_memory(at_memory_HL, HL);
+                    }
+
+                    [Operand::A, Operand::none] => {
+                        self.A = self.SWAP(self.A);
+                    }
+
+                    _ => {
+                        eprintln!("Non existing RLC instruction.");
+                    }
+                }
+            }
+
+            _ => {
+                eprintln!("Non existing prefixed instruction");
+            }
+        }
+        self.pc += instruction.length as u16;
+        if let cycles_length::non_conditional(cycles) = instruction.cycles {
+            cycles
+        }
+        else {
+            panic!("Conditional prefixed instruction");
+        }
     }
 }

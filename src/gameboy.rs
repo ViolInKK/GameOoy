@@ -28,9 +28,30 @@ impl GameBoy {
         }
     }
 
-    pub fn exec_cycle(&mut self){
+    pub fn update(&mut self) {
+        //let MAXCYCLES = 69905;
+        //let cycles_this_update = 0;
+
+        //while(cycles_this_update < MAXCYCLES)
+        //{
+        //    let cycles = ExecuteNextOpcode();
+        //    cycles_this_update += cycles;
+        //    updateTimers(cycles);
+        //    updateGraphics(cycles);
+        //    DoInterupts();
+        //}
+
+        let MAXCYCLES: u32 = 69905;
+        let mut cycles_this_update = 0;
+        while(cycles_this_update < MAXCYCLES)
+        {
+            cycles_this_update += self.exec_next_instruction() as u32;
+        }
+    }
+
+    fn exec_next_instruction(&mut self) -> u8 {
         let instruction_byte = self.databus.borrow().read_memory(self.cpu.pc);
-        self.cpu.exec_instruction(instruction_byte);
+        self.cpu.exec_instruction(instruction_byte)
     }
 }
 

@@ -33,7 +33,6 @@ fn main() {
    // }
 
     let mut gameboy = GameBoy::new();
-    gameboy.exec_cycle();
 
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
@@ -59,6 +58,7 @@ fn main() {
                 _ => {}
             }
         }
+            gameboy.update();
         // The rest of the game loop goes here...
     }
 }
