@@ -1,35 +1,36 @@
 pub struct DataBus{
-    memory: [u8; 65536],
+    timer_cycles_counter: u32,
+
+    pub memory: [u8; 65536],
+    pub cartridge_rom: Vec<u8>,
+    pub cartridge_ram: Vec<u8>,
+
+    pub ROM_banks_count: u32,
+    current_ROM_bank: u8,
+
+    pub joypad_state: u8,
+
+    pub RAM_banks_count: u8,
+    current_RAM_bank: u8,
+    RAM_banks_enabled: bool,
+
+    banking_mode: u8,
+
+    pub MBC1: bool,
+    pub MBC2: bool,
 }
 
 impl DataBus {
     pub fn new() -> DataBus {
         let mut memory = [0; 65536];
-        memory[0x0100] = 0xCB;
-        memory[0x0101] = 0x33;
-
-        memory[0x8000] = 0xFF;
-        memory[0x8001] = 0x00;
-        memory[0x8002] = 0x7E;
-        memory[0x8003] = 0xFF;
-        memory[0x8004] = 0x85;
-        memory[0x8005] = 0x81;
-        memory[0x8006] = 0x89;
-        memory[0x8007] = 0x83;
-        memory[0x8008] = 0x93;
-        memory[0x8009] = 0x85;
-        memory[0x800A] = 0xA5;
-        memory[0x800B] = 0x8B;
-        memory[0x800C] = 0xC9;
-        memory[0x800D] = 0x97;
-        memory[0x800E] = 0x7E;
-        memory[0x800F] = 0xFF;
+        let cartridge_rom = Vec::new();
+        let cartridge_ram = Vec::new();
 
         //hardware registers initial values
         memory[0xFF00] = 0xCF;
         memory[0xFF02] = 0x7E;
-        memory[0xFF04] = 0xAB;
-        memory[0xFF07] = 0xF8;
+        memory[0xFF06] = 0xAB;
+        memory[0xFF07] = 0xFF;
         memory[0xFF0F] = 0xE1;
         memory[0xFF10] = 0x80;
         memory[0xFF11] = 0xBF;
@@ -55,28 +56,187 @@ impl DataBus {
         memory[0xFF47] = 0xFC;
 
         DataBus {
+            timer_cycles_counter: 0,
+
             memory,
+            cartridge_rom,
+            cartridge_ram,
+
+            ROM_banks_count: 2,
+            current_ROM_bank: 1,
+
+            joypad_state: 0xFF,
+            
+            RAM_banks_count: 0,
+            current_RAM_bank: 0,
+            RAM_banks_enabled: false,
+
+            banking_mode: 1,
+
+            MBC1: false,
+            MBC2: false,
         }
     }
 
-    pub fn read_memory(&self, addr: u16) -> u8{
-        self.memory[addr as usize]
+    pub fn load_boot_rom(&mut self, index: usize, data: u8) {
+        self.memory[index] = data;
     }
 
-    pub fn write_memory(&mut self, data: u8, addr: u16){
+    pub fn load_rom(&mut self, index: usize, data: u8) {
+        if index >= 0x8100 {
+            self.cartridge_rom[index - 0x8000] = data;
+            return;
+        }
+        self.memory[index] = data;
+    }
+
+    pub fn increment_div_timer(&mut self) {
+        self.memory[0xFF04] = self.memory[0xFF04].wrapping_add(1);
+    }
+
+    pub fn sync_joypad_states(&mut self, joypad_state: u8) {
+        self.joypad_state = joypad_state;
+    }
+
+    pub fn read_memory(&self, addr: u16) -> u8{
         match addr {
-            0x0000..=0x7FFF => {
-                println!("ROM");
+            0x4000..=0x7FFF => {
+                //rom banks
+                if self.current_ROM_bank == 1 {
+                    return self.memory[addr as usize]
+                }
+                let new_address = (addr - 0x4000) + ((self.current_ROM_bank - 2) as u16 * 0x4000);
+                    self.cartridge_rom[new_address as usize]
+                }
+
+            0xA000..=0xBFFF => {
+                //ram banks
+                if self.RAM_banks_enabled {
+                    let new_address = (addr - 0xA000) + (self.current_RAM_bank as u16 * 0x2000);
+                    self.cartridge_ram[new_address as usize]
+                }
+                else {
+                    0xFF
+                }
+            }
+
+            0xFF00 => {
+                if ((self.memory[addr as usize] >> 4) & 0x03) == 0 {
+                    0x0F
+                }
+                else {
+                    let mut res = self.memory[addr as usize];
+                    if ((self.memory[addr as usize] >> 4) & 0x01) == 0 {
+                        let buttons_joypad = (self.joypad_state >> 4) | 0xF0;
+                        res &= buttons_joypad;
+                    }
+
+                    else if ((self.memory[addr as usize] >> 5) & 0x01) == 0 {
+                        let dpad_joypad = (self.joypad_state & 0xF) | 0xF0;
+                        res = dpad_joypad;
+                    }
+
+                    res
+                }
+            }
+
+            _ => {
+                self.memory[addr as usize]
+            }
+        }
+    }
+
+    pub fn write_memory(&mut self, data: u8, addr: u16) {
+        match addr {
+            0x0000..=0x1FFF => {
+                //eanbling or disabling ram banking
+                if (self.MBC1 || self.MBC2) && self.RAM_banks_count > 0 {
+                    if (self.MBC2) && ((addr & 0x100) > 0) {
+                        return;
+                    }
+                    self.RAM_banks_enabled = data & 0x0F == 0x0A;
+                }
+            }
+
+            0x2000..=0x3FFF => {
+                //switch rom bank
+                if self.MBC1 {
+                    let lower5 = data & 0x1F;
+                    self.current_ROM_bank &= 0xE0;
+                    self.current_ROM_bank |= lower5;
+
+                    if self.current_ROM_bank == 0x00 {
+                        self.current_ROM_bank = 0x01;
+                    }
+                }
+                if self.MBC2 {
+                    self.current_ROM_bank = data & 0x0F;
+                    if self.current_ROM_bank == 0 {
+                        self.current_ROM_bank = 1;
+                    }
+                }
+            }
+
+            0x4000..= 0x5FFF => {
+                //ram bank number
+                if self.MBC1 {
+                    if self.banking_mode == 0 && self.RAM_banks_count > 0 {
+                        self.current_RAM_bank = data & 0x3;
+                    }
+                    if self.banking_mode == 1 && self.ROM_banks_count > 32 {
+                        self.current_ROM_bank &= 0x1F;
+                        self.current_ROM_bank |= data & 0xE0;
+                        if self.current_ROM_bank == 0 {
+                            self.current_ROM_bank = 1;
+                        }
+                    }
+                }
+            }
+
+            0x6000..=0x7FFF => {
+                //banking mode select
+                if self.MBC1 || self.MBC2 {
+                    self.banking_mode = data & 0x01;
+                }
+            }
+
+            0xA000..=0xBFFF => {
+                //writing to RAM banks
+                if self.RAM_banks_enabled {
+                    let new_address = (addr - 0xA000) + (self.current_RAM_bank as u16 * 0x2000);
+                    self.cartridge_ram[new_address as usize] = data;
+                }
             }
 
             0xE000..=0xFDFF => {
                 self.memory[addr as usize] = data;
                 self.write_memory(data, addr-0x2000);
-                println!("ECHO MEMORY LOCATION");
             }
 
             0xFEA0..=0xFEFF => {
-                println!("RESTRICTED AREA. NOT WRITABLE");
+            }
+
+            0xFF00 => {
+                let input_mode = (data >> 4) & 0x03;
+                self.memory[0xFF00] &= !(0x03 << 4) as u8;
+                self.memory[0xFF00] |= input_mode << 4;
+            }
+
+            //writes to div timer reset it
+            0xFF04 => {
+                self.memory[addr as usize] = 0x00;
+            }
+
+            0xFF40 => {
+                self.memory[addr as usize] = data;
+            }
+
+            //DMA transfer
+            0xFF46 => {
+                let address = (data as u16) << 8;
+                for i in 0..0xA0 {
+                    self.write_memory(self.read_memory(address + i), 0xFE00 + i);
+                }
             }
 
             _ => {

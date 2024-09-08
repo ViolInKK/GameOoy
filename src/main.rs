@@ -15,39 +15,37 @@ use crate::gameboy::GameBoy;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 
-pub const DEBUG: bool = true;
+pub const DEBUG: bool = false;
+
+pub const SCREEN_WIDTH: u32  = 160;
+pub const SCREEN_HEIGHT: u32 = 144;
+pub const SCREEN_SCALE: u32  = 5;
+
+pub const UP: u8     = 0;
+pub const RIGHT: u8  = 1;
+pub const DOWN: u8   = 2;
+pub const LEFT: u8   = 3;
+pub const A: u8      = 4;
+pub const B: u8      = 5;
+pub const SELECT: u8 = 6;
+pub const START: u8  = 7;
 
 fn main() {
-
-    let SCREEN_WIDTH = 160;
-    let SCREEN_HEIGHT = 144;
-    let SCREEN_SCALE = 5;
-
-    //let test = crate::cpu_instructions::BUH.get(&0x01);
-
-    //println!("{:?}", test.unwrap().mnemonic);
-
-   // let file = std::fs::read("../roms/Pokemon - Red Version (USA, Europe) (SGB Enhanced).gb").unwrap();
-   // for (index, byte) in file.iter().enumerate() {
-   //     println!("INDEX:{:#x} BYTE:{:#x}", index, byte);
-   // }
-
-    let mut gameboy = GameBoy::new();
-
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
-    let window = video_subsystem.window("rust-sdl2 demo", SCREEN_WIDTH * SCREEN_SCALE, SCREEN_HEIGHT * SCREEN_SCALE)
+    let window = video_subsystem.window("GameOoy", SCREEN_WIDTH * SCREEN_SCALE, SCREEN_HEIGHT * SCREEN_SCALE)
         .position_centered()
         .build()
         .unwrap();
-
     let mut canvas = window.into_canvas().build().unwrap();
-
-    gameboy.ppu.draw_sprite(&mut canvas, 0);
-
     let mut event_pump = sdl_context.event_pump().unwrap();
 
+    let mut gameboy = GameBoy::new(&mut canvas);
+    gameboy.load_rom();
+    gameboy.powerup_sequence();
+
     let mut running: bool = true;
+
     while running {
         for event in event_pump.poll_iter() {
             match event {
@@ -55,10 +53,62 @@ fn main() {
                 Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     running = false;
                 },
+
+                Event::KeyDown { keycode: Some(Keycode::UP), .. } => {
+                    gameboy.key_pressed(UP);
+                }
+                Event::KeyDown { keycode: Some(Keycode::DOWN), .. } => {
+                    gameboy.key_pressed(DOWN);
+                }
+                Event::KeyDown { keycode: Some(Keycode::RIGHT), .. } => {
+                    gameboy.key_pressed(RIGHT);
+                }
+                Event::KeyDown { keycode: Some(Keycode::LEFT), .. } => {
+                    gameboy.key_pressed(LEFT);
+                }
+                Event::KeyDown { keycode: Some(Keycode::A), .. } => {
+                    gameboy.key_pressed(A);
+                }
+                Event::KeyDown { keycode: Some(Keycode::S), .. } => {
+                    gameboy.key_pressed(B);
+                }
+                Event::KeyDown { keycode: Some(Keycode::RETURN), .. } => {
+                    gameboy.key_pressed(SELECT);
+                }
+                Event::KeyDown { keycode: Some(Keycode::SPACE), .. } => {
+                    gameboy.key_pressed(START);
+                }
+
+                ////
+
+                Event::KeyUp { keycode: Some(Keycode::UP), .. } => {
+                    gameboy.key_released(UP);
+                }
+                Event::KeyUp { keycode: Some(Keycode::DOWN), .. } => {
+                    gameboy.key_released(DOWN);
+                }
+                Event::KeyUp { keycode: Some(Keycode::RIGHT), .. } => {
+                    gameboy.key_released(RIGHT);
+                }
+                Event::KeyUp { keycode: Some(Keycode::LEFT), .. } => {
+                    gameboy.key_released(LEFT);
+                }
+                Event::KeyUp { keycode: Some(Keycode::A), .. } => {
+                    gameboy.key_released(A);
+                }
+                Event::KeyUp { keycode: Some(Keycode::S), .. } => {
+                    gameboy.key_released(B);
+                }
+                Event::KeyUp { keycode: Some(Keycode::RETURN), .. } => {
+                    gameboy.key_released(SELECT);
+                }
+                Event::KeyUp { keycode: Some(Keycode::SPACE), .. } => {
+                    gameboy.key_released(START);
+                }
+
                 _ => {}
             }
         }
-            gameboy.update();
-        // The rest of the game loop goes here...
+        gameboy.update();
     }
 }

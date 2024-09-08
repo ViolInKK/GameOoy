@@ -18,11 +18,10 @@ pub struct Cpu {
     F: u8,
 
     //interrupt flag 
-    IME: bool,
+    pub IME_enabled: bool,
 
-    is_halted: bool,
+    pub is_halted: bool,
 
-    // stack pointer and program counter
     pub sp: u16,
     pub pc: u16,
 
@@ -51,40 +50,30 @@ impl std::fmt::Display for Cpu {
 impl Cpu {
     pub fn new(databus: Rc<RefCell<DataBus>>) -> Cpu {
         Cpu {
-            A: 0x01,
+            A: 0x00,
             B: 0x00,
-            C: 0x13,
+            C: 0x00,
             D: 0x00,
-            E: 0xD8,
-            H: 0x01,
-            L: 0x4D,
+            E: 0x00,
+            H: 0x00,
+            L: 0x00,
 
-            F: 0b1011_0000,
+            F: 0b0000_0000,
 
-            IME: false,
+            IME_enabled: false,
 
             is_halted: false,
 
-            sp: 0xFFFE,
-            pc: 0x0100,
+            sp: 0x0000,
+            pc: 0x0000,
 
             databus,
         }
     }
 
-    fn flip_z(&mut self){
-        self.F ^= 0b1000_0000;
-    }
-
-    fn flip_n(&mut self){
-        self.F ^= 0b0100_0000;
-    }
-
-    fn flip_h(&mut self){
-        self.F ^= 0b0010_0000;
-    }
-
     fn flip_c(&mut self){
+        self.set_n_to(false);
+        self.set_h_to(false);
         self.F ^= 0b0001_0000;
     }
 
@@ -111,7 +100,7 @@ impl Cpu {
     }
 
     fn get_z(&self) -> bool{
-        if (self.F & 0b1000_0000) > 0 {
+        if ((self.F >> 7) & 0x01) == 1 {
             return true
         }
         false
@@ -200,21 +189,33 @@ impl Cpu {
         self.databus.borrow().read_memory(self.pc + 1) as i8
     }
 
-    fn ADC(&mut self, addition_byte: u8) {
-        let result = self.A.overflowing_add(addition_byte + self.get_c() as u8);
+    fn ADC(&mut self, addition_byte: u8) -> u8 {
+        let result: u16 = self.A as u16 + addition_byte as u16 + self.get_c() as u16;
 
-        if result.0 == 0 {
+        if (result & 0xFF) == 0 {
             self.set_z_to(true);
         }
-        if result.1 {
-            self.set_c_to(true);
+        else {
+            self.set_z_to(false);
         }
-        if ((self.A & 0x0F) + (addition_byte & 0x0F)) > 0x0F {
+
+        if ((self.A & 0x0F) + (addition_byte & 0x0F) + (self.get_c() as u8)) > 0xF {
             self.set_h_to(true);
         }
+        else {
+            self.set_h_to(false);
+        }
+
+        if result > 0xFF {
+            self.set_c_to(true);
+        }
+        else {
+            self.set_c_to(false);
+        }
+
         self.set_n_to(false);
 
-        self.A = result.0;
+        (result & 0xFF) as u8
     }
 
     fn ADD(&mut self, rhs: u8) {
@@ -223,12 +224,24 @@ impl Cpu {
         if result.0 == 0 {
             self.set_z_to(true);
         }
+        else {
+            self.set_z_to(false);
+        }
+
         if result.1 {
             self.set_c_to(true);
         }
-        if ((self.A & 0x0F) + (rhs & 0x0F)) > 0x0F {
+        else {
+            self.set_c_to(false);
+        }
+
+        if (((self.A & 0x0F) + (rhs & 0x0F)) & 0x10) == 0x10 {
             self.set_h_to(true);
         }
+        else {
+            self.set_h_to(false);
+        }
+
         self.set_n_to(false);
 
         self.A = result.0;
@@ -241,9 +254,17 @@ impl Cpu {
         if result.1 {
             self.set_c_to(true);
         }
-        if ((HL & 0x0FFF) + (rhs & 0x0FFF)) > 0x0FFF {
+        else {
+            self.set_c_to(false);
+        }
+
+        if (((HL & 0x0FFF) + (rhs & 0x0FFF)) & 0x1000) == 0x1000  {
             self.set_h_to(true);
         }
+        else {
+            self.set_h_to(false);
+        }
+
         self.set_n_to(false);
 
         self.H = (result.0 >> 8) as u8;
@@ -256,6 +277,10 @@ impl Cpu {
         if result == 0 {
             self.set_z_to(true);
         }
+        else {
+            self.set_z_to(false);
+        }
+
         self.set_n_to(false);
         self.set_h_to(true);
         self.set_c_to(false);
@@ -267,25 +292,35 @@ impl Cpu {
         let mut databus_borrow = self.databus.borrow_mut();
 
         //Push next instruction address onto stack
-        self.sp -= 1;
-        databus_borrow.write_memory(((self.pc + 3) >> 8) as u8, self.sp);
-        self.sp -= 1;
-        databus_borrow.write_memory(((self.pc + 3) & 0xFF) as u8, self.sp);
+        databus_borrow.write_memory(((self.pc.wrapping_add(3)) >> 8) as u8, self.sp.wrapping_sub(1));
+        databus_borrow.write_memory(((self.pc.wrapping_add(3)) & 0xFF) as u8, self.sp.wrapping_sub(2));
 
         //jump to address a16
         self.pc = a16;
+
+        self.sp = self.sp.wrapping_sub(2);
     }
 
     fn CP(&mut self, rhs: u8) {
         if self.A == rhs {
             self.set_z_to(true);
         }
+        else {
+            self.set_z_to(false);
+        }
+
         if self.A < rhs {
             self.set_c_to(true);
         }
-        //this may be fucked
+        else {
+            self.set_c_to(false);
+        }
+
         if (self.A & 0x0F) < (rhs & 0x0F) {
             self.set_h_to(true);
+        }
+        else {
+            self.set_h_to(false);
         }
         self.set_n_to(true);
     }
@@ -293,16 +328,20 @@ impl Cpu {
     fn DAA(&mut self) {
         // https://blog.ollien.com/posts/gb-daa/
         let mut offset: u8 = 0;
+        let mut should_carry: bool = false;
+
         let is_carry = self.get_c();
         let is_half_carry = self.get_h();
         let is_subtract = self.get_n();
 
-        if is_half_carry || (!is_subtract && (self.A & 0x0F) > 0x09) {
+
+        if (!is_subtract && self.A & 0xF > 0x09) || is_half_carry {
             offset |= 0x06;
         }
-        if is_carry || (!is_subtract && self.A > 0x99) {
+
+        if (!is_subtract && self.A > 0x99) || is_carry {
             offset |= 0x60;
-            self.set_c_to(true);
+            should_carry = true;
         }
 
         if is_subtract {
@@ -318,6 +357,14 @@ impl Cpu {
         else {
             self.set_z_to(false);
         }
+
+        if should_carry {
+            self.set_c_to(true);
+        }
+        else {
+            self.set_c_to(false);
+        }
+
         self.set_h_to(false);
     }
 
@@ -327,10 +374,14 @@ impl Cpu {
         if result == 0 {
             self.set_z_to(true);
         }
-        //this may be fucked
-        //maybe (lhs > 0) && (lhs & 0x0F == 0)
+        else {
+            self.set_z_to(false);
+        }
         if lhs & 0x0F == 0 {
             self.set_h_to(true);
+        }
+        else {
+            self.set_h_to(false);
         }
         self.set_n_to(true);
 
@@ -347,10 +398,16 @@ impl Cpu {
         if result == 0 {
             self.set_z_to(true);
         }
-        //this also may be as fucked as ^
+        else {
+            self.set_z_to(false);
+        }
         if lhs & 0x0F == 0x0F {
             self.set_h_to(true);
         }
+        else {
+            self.set_h_to(false);
+        }
+
         self.set_n_to(false);
 
         result
@@ -366,6 +423,10 @@ impl Cpu {
         if result == 0 {
             self.set_z_to(true);
         }
+        else {
+            self.set_z_to(false);
+        }
+
         self.set_n_to(false);
         self.set_h_to(false);
         self.set_c_to(false);
@@ -376,36 +437,48 @@ impl Cpu {
     fn POP(&mut self) -> (u8, u8) {
         let databus_borrow = self.databus.borrow();
         let lsb: u8 = databus_borrow.read_memory(self.sp);
-        self.sp = self.sp.wrapping_add(1);
-        let msb: u8 = databus_borrow.read_memory(self.sp);
-        self.sp = self.sp.wrapping_add(1);
+        let msb: u8 = databus_borrow.read_memory(self.sp.wrapping_add(1));
+
+        self.sp = self.sp.wrapping_add(2);
 
         (msb, lsb)
     }
 
-    fn PUSH(&mut self, rhs: u16) {
+    pub fn PUSH(&mut self, rhs: u16) {
         let mut databus_borrow = self.databus.borrow_mut();
-        self.sp = self.sp.wrapping_sub(1);
-        databus_borrow.write_memory((rhs >> 8) as u8, self.sp);
-        self.sp = self.sp.wrapping_sub(1);
-        databus_borrow.write_memory((rhs & 0xFF) as u8, self.sp);
+        databus_borrow.write_memory((rhs >> 8) as u8, self.sp.wrapping_sub(1));
+        databus_borrow.write_memory((rhs & 0xFF) as u8, self.sp.wrapping_sub(2));
+
+        self.sp = self.sp.wrapping_sub(2);
     }
 
     fn SBC(&mut self, rhs: u8) -> u8 {
-        let result = self.A.overflowing_sub(rhs + self.get_c() as u8);
+        let result: u8 = self.A.wrapping_sub(rhs).wrapping_sub(self.get_c() as u8);
 
-        if result.0 == 0 {
+        if result == 0 {
             self.set_z_to(true);
         }
-        self.set_n_to(true);
-        if self.A & 0x0F < (rhs + self.get_c() as u8) & 0x0F {
-            self.set_h_to(true);
-        }
-        if result.1 {
-            self.set_c_to(true);
+        else {
+            self.set_z_to(false);
         }
 
-        result.0
+        if ((rhs & 0x0F) + (self.get_c() as u8)) > (self.A & 0x0F) {
+            self.set_h_to(true);
+        }
+        else {
+            self.set_h_to(false);
+        }
+
+        if ((rhs as u16) + (self.get_c() as u16)) > self.A as u16 {
+            self.set_c_to(true);
+        }
+        else {
+            self.set_c_to(false);
+        }
+
+        self.set_n_to(true);
+
+        result
     }
 
     fn SUB(&mut self, rhs: u8) -> u8 {
@@ -414,12 +487,24 @@ impl Cpu {
         if result.0 == 0 {
             self.set_z_to(true);
         }
+        else {
+            self.set_z_to(false);
+        }
+
         self.set_n_to(true);
+
         if self.A & 0x0F < rhs & 0x0F {
             self.set_h_to(true);
         }
+        else {
+            self.set_h_to(false);
+        }
+
         if result.1 {
             self.set_c_to(true);
+        }
+        else {
+            self.set_c_to(false);
         }
 
         result.0
@@ -431,6 +516,10 @@ impl Cpu {
         if result == 0 {
             self.set_z_to(true);
         }
+        else {
+            self.set_z_to(false);
+        }
+
         self.set_n_to(false);
         self.set_h_to(false);
         self.set_c_to(false);
@@ -444,6 +533,10 @@ impl Cpu {
         if result == 0 {
             self.set_z_to(true);
         }
+        else {
+            self.set_z_to(false);
+        }
+
         self.set_n_to(false);
         self.set_h_to(true);
     }
@@ -464,6 +557,10 @@ impl Cpu {
         if result == 0 {
             self.set_z_to(true);
         }
+        else {
+            self.set_z_to(false);
+        }
+
         self.set_n_to(false);
         self.set_h_to(false);
         self.set_c_to(msb != 0);
@@ -478,6 +575,10 @@ impl Cpu {
         if result == 0 {
             self.set_z_to(true);
         }
+        else {
+            self.set_z_to(false);
+        }
+
         self.set_n_to(false);
         self.set_h_to(false);
         self.set_c_to(msb != 0);
@@ -493,6 +594,10 @@ impl Cpu {
         if result == 0 {
             self.set_z_to(true);
         }
+        else {
+            self.set_z_to(false);
+        }
+
         self.set_n_to(false);
         self.set_h_to(false);
         self.set_c_to(lsb != 0);
@@ -504,7 +609,13 @@ impl Cpu {
         let lsb =  rhs & 0x1;
         let result = rhs.rotate_right(1);
 
-        self.set_z_to(false);
+        if result == 0 {
+            self.set_z_to(true);
+        }
+        else {
+            self.set_z_to(false);
+        }
+
         self.set_n_to(false);
         self.set_h_to(false);
         self.set_c_to(lsb != 0);
@@ -519,6 +630,10 @@ impl Cpu {
         if result == 0 {
             self.set_z_to(true);
         }
+        else {
+            self.set_z_to(false);
+        }
+
         self.set_n_to(false);
         self.set_h_to(false);
         self.set_c_to(msb != 0);
@@ -527,12 +642,36 @@ impl Cpu {
     }
 
     fn SRA(&mut self, rhs: u8) -> u8 {
-        let lsb =  rhs & 0x1;
+        let lsb =  rhs & 0x01;
+        let msb = (rhs >> 7) & 0x01;
+        let mut result = rhs >> 1;
+        result |= msb << 7;
+
+        if result == 0 {
+            self.set_z_to(true);
+        }
+        else {
+            self.set_z_to(false);
+        }
+
+        self.set_n_to(false);
+        self.set_h_to(false);
+        self.set_c_to(lsb != 0);
+
+        result
+    }
+
+    fn SRL(&mut self, rhs: u8) -> u8 {
+        let lsb =  rhs & 0x01;
         let result = rhs >> 1;
 
         if result == 0 {
             self.set_z_to(true);
         }
+        else {
+            self.set_z_to(false);
+        }
+
         self.set_n_to(false);
         self.set_h_to(false);
         self.set_c_to(lsb != 0);
@@ -548,6 +687,10 @@ impl Cpu {
         if result == 0 {
             self.set_z_to(true);
         }
+        else {
+            self.set_z_to(false);
+        }
+
         self.set_n_to(false);
         self.set_h_to(false);
         self.set_c_to(false);
@@ -566,8 +709,8 @@ impl Cpu {
             CPU STATE BEFORE:
                 {}", self);
             println!("
-            INSTRUCTION:
-                {}", instruction);
+            INSTRUCTION {:#x}:
+                {}", instruction_byte,instruction);
         }
 
         match instruction.mnemonic {
@@ -575,40 +718,41 @@ impl Cpu {
                 match instruction.operands.as_ref().unwrap() {
 
                     [Operand::A, Operand::B] => {
-                        self.ADC(self.B);
+                        self.A = self.ADC(self.B);
                     }
 
                     [Operand::A, Operand::C] => {
-                        self.ADC(self.C);
+                        self.A = self.ADC(self.C);
                     }
 
                     [Operand::A, Operand::D] => {
-                        self.ADC(self.D);
+                        self.A = self.ADC(self.D);
                     }
 
                     [Operand::A, Operand::E] => {
-                        self.ADC(self.E);
+                        self.A = self.ADC(self.E);
                     }
 
                     [Operand::A, Operand::H] => {
-                        self.ADC(self.H);
+                        self.A = self.ADC(self.H);
                     }
 
                     [Operand::A, Operand::L] => {
-                        self.ADC(self.L);
+                        self.A = self.ADC(self.L);
                     }
 
                     [Operand::A, Operand::at_memory_HL] => {
                         let at_memory_HL = self.databus.borrow().read_memory(self.get_HL());
-                        self.ADC(at_memory_HL);
+
+                        self.A = self.ADC(at_memory_HL);
                     }
 
                     [Operand::A, Operand::A] => {
-                        self.ADC(self.A);
+                        self.A = self.ADC(self.A);
                     }
 
                     [Operand::A, Operand::n8] => {
-                        self.ADC(self.get_n8());
+                        self.A = self.ADC(self.get_n8());
                     }
 
                     _ => {
@@ -675,10 +819,32 @@ impl Cpu {
 
                     [Operand::SP, Operand::e8] => {
                         let e8 = self.get_e8();
+                        let u16 = (e8 as u16) & 0x00FF;
+                        let e8_abs = e8.unsigned_abs();
+
+                        if ((self.sp & 0x0F) + (u16 & 0x0F)) > 0x0F {
+                            self.set_h_to(true);
+                        }
+                        else {
+                            self.set_h_to(false);
+                        }
+
+                        if ((self.sp & 0xFF) + (u16)) > 0xFF {
+                            self.set_c_to(true);
+                        }
+                        else {
+                            self.set_c_to(false);
+                        }
+
+                        if e8 < 0 {
+                            self.sp = self.sp.wrapping_sub(e8_abs as u16);
+                        }
+                        else {
+                            self.sp = self.sp.wrapping_add(e8_abs as u16);
+                        }
 
                         self.set_z_to(false);
                         self.set_n_to(false);
-                        self.sp = self.sp.wrapping_add_signed(e8.into());
                     }
 
                     _ => {
@@ -839,6 +1005,8 @@ impl Cpu {
             }
 
             Mnemonic::CPL => {
+                self.set_n_to(true);
+                self.set_h_to(true);
                 self.A = !self.A;
             }
             Mnemonic::DAA => {
@@ -915,31 +1083,24 @@ impl Cpu {
             }
 
             Mnemonic::DI => {
-                //This is some fucky shit
-                let next_instruction = self.databus.borrow().read_memory(self.pc.wrapping_add(1));
+                self.pc += 1;
+                jumped = true;
+                let next_instruction = self.databus.borrow().read_memory(self.pc);
                 self.exec_instruction(next_instruction);
-                self.IME = false;
+                self.IME_enabled = false;
             }
 
             Mnemonic::EI => {
-                //This is some fucky shit
-                let next_instruction = self.databus.borrow().read_memory(self.pc.wrapping_add(1));
+                self.pc += 1;
+                jumped = true;
+                let next_instruction = self.databus.borrow().read_memory(self.pc);
                 self.exec_instruction(next_instruction);
-                self.IME = true;
+                self.IME_enabled = true;
             }
 
             Mnemonic::HALT => {
-                if self.IME {
+                if self.IME_enabled {
                     self.is_halted = true;
-                }
-                else {
-                    let IE = self.databus.borrow().read_memory(0xFFFF);
-                    let IF = self.databus.borrow().read_memory(0xFF0F);
-
-                    if (IE & IF) == 0 {
-
-                    }
-
                 }
             }
 
@@ -1071,16 +1232,29 @@ impl Cpu {
 
             Mnemonic::JR => {
                 let e8 = self.get_e8();
+                let e8_abs = e8.unsigned_abs();
                 match instruction.operands.as_ref().unwrap() {
 
                     [Operand::e8, Operand::none] => {
-                        self.pc = self.pc.wrapping_add_signed(e8.into());
+                        if e8 < 0 {
+                            self.pc = self.pc.wrapping_sub(e8_abs as u16);
+                        }
+                        else {
+                            self.pc = self.pc.wrapping_add(e8_abs as u16);
+                        }
+                        self.pc += 2;
                         jumped = true;
                     }
 
                     [Operand::NZ, Operand::e8] => {
                         if !self.get_z() {
-                            self.pc = self.pc.wrapping_add_signed(e8.into());
+                            if e8 < 0 {
+                                self.pc = self.pc.wrapping_sub(e8_abs as u16);
+                            }
+                            else {
+                                self.pc = self.pc.wrapping_add(e8_abs as u16);
+                            }
+                            self.pc += 2;
                             jumped = true;
                             condition_met = true;
                         }
@@ -1088,7 +1262,13 @@ impl Cpu {
 
                     [Operand::Z, Operand::e8] => {
                         if self.get_z() {
-                            self.pc = self.pc.wrapping_add_signed(e8.into());
+                            if e8 < 0 {
+                                self.pc = self.pc.wrapping_sub(e8_abs as u16);
+                            }
+                            else {
+                                self.pc = self.pc.wrapping_add(e8_abs as u16);
+                            }
+                            self.pc += 2;
                             jumped = true;
                             condition_met = true;
                         }
@@ -1096,7 +1276,13 @@ impl Cpu {
 
                     [Operand::NCY, Operand::e8] => {
                         if !self.get_c() {
-                            self.pc = self.pc.wrapping_add_signed(e8.into());
+                            if e8 < 0 {
+                                self.pc = self.pc.wrapping_sub(e8_abs as u16);
+                            }
+                            else {
+                                self.pc = self.pc.wrapping_add(e8_abs as u16);
+                            }
+                            self.pc += 2;
                             jumped = true;
                             condition_met = true;
                         }
@@ -1104,7 +1290,13 @@ impl Cpu {
 
                     [Operand::C, Operand::e8] => {
                         if self.get_c() {
-                            self.pc = self.pc.wrapping_add_signed(e8.into());
+                            if e8 < 0 {
+                                self.pc = self.pc.wrapping_sub(e8_abs as u16);
+                            }
+                            else {
+                                self.pc = self.pc.wrapping_add(e8_abs as u16);
+                            }
+                            self.pc += 2;
                             jumped = true;
                             condition_met = true;
                         }
@@ -1176,7 +1368,15 @@ impl Cpu {
                     }
 
                     [Operand::at_memory_HLI, Operand::A] => {
-                        self.databus.borrow_mut().write_memory(self.A, self.get_HL());
+                        let HL = self.get_HL();
+                        self.databus.borrow_mut().write_memory(self.A, HL);
+
+                        let updated_HL = HL.wrapping_add(1);
+                        let L = updated_HL & 0x00FF;
+                        let H = (updated_HL >> 8) & 0x00FF;
+
+                        self.H = H as u8;
+                        self.L = L as u8;
                     }
 
                     [Operand::H, Operand::n8] => {
@@ -1184,7 +1384,15 @@ impl Cpu {
                     }
 
                     [Operand::A, Operand::at_memory_HLI] => {
-                        self.A = self.databus.borrow().read_memory(self.get_HL());
+                        let HL = self.get_HL();
+                        self.A = self.databus.borrow().read_memory(HL);
+
+                        let updated_HL = HL.wrapping_add(1);
+                        let L = updated_HL & 0x00FF;
+                        let H = (updated_HL >> 8) & 0x00FF;
+
+                        self.H = H as u8;
+                        self.L = L as u8;
                     }
 
                     [Operand::L, Operand::n8] => {
@@ -1196,7 +1404,15 @@ impl Cpu {
                     }
 
                     [Operand::at_memory_HLD, Operand::A] => {
-                        self.databus.borrow_mut().write_memory(self.A, self.get_HL());
+                        let HL = self.get_HL();
+                        self.databus.borrow_mut().write_memory(self.A, HL);
+
+                        let updated_HL = HL.wrapping_sub(1);
+                        let L = updated_HL & 0x00FF;
+                        let H = (updated_HL >> 8) & 0x00FF;
+
+                        self.H = H as u8;
+                        self.L = L as u8;
                     }
 
                     [Operand::at_memory_HL, Operand::n8] => {
@@ -1206,7 +1422,15 @@ impl Cpu {
                     }
 
                     [Operand::A, Operand::at_memory_HLD] => {
-                        self.A = self.databus.borrow().read_memory(self.get_HL());
+                        let HL = self.get_HL();
+                        self.A = self.databus.borrow().read_memory(HL);
+
+                        let updated_HL = HL.wrapping_sub(1);
+                        let L = updated_HL & 0x00FF;
+                        let H = (updated_HL >> 8) & 0x00FF;
+
+                        self.H = H as u8;
+                        self.L = L as u8;
                     }
 
                     [Operand::A, Operand::n8] => {
@@ -1459,7 +1683,8 @@ impl Cpu {
                     }
 
                     [Operand::at_memory_C, Operand::A] => {
-                        self.databus.borrow_mut().write_memory(self.A, self.C as u16);
+                        let address = 0xFF00_u16.wrapping_add(self.C as u16);
+                        self.databus.borrow_mut().write_memory(self.A, address);
                     }
 
                     [Operand::at_memory_a16, Operand::A] => {
@@ -1468,29 +1693,43 @@ impl Cpu {
                     }
 
                     [Operand::A, Operand::at_memory_C] => {
-                        self.A = self.databus.borrow().read_memory(self.C as u16);
+                        let address = 0xFF00_u16.wrapping_add(self.C as u16);
+                        self.A = self.databus.borrow().read_memory(address);
                     }
 
                     [Operand::HL, Operand::SP_plus_e8] => {
-                        //This is some fucky stuff
                         let e8 = self.get_e8();
-                        let SP_plus_e8 = self.sp.overflowing_add_signed(e8.into());
+                        let u16 = (e8 as u16) & 0x00FF;
+                        let e8_abs = e8.unsigned_abs();
 
-                        if SP_plus_e8.1 {
+                        let result: u16;
+
+                        if ((self.sp & 0x0F) + (u16 & 0x0F)) > 0x0F {
+                            self.set_h_to(true);
+                        }
+                        else {
+                            self.set_h_to(false);
+                        }
+
+                        if ((self.sp & 0xFF) + (u16)) > 0xFF {
                             self.set_c_to(true);
                         }
-                        if e8 > 0 && ((e8 & 0x0F) as u8 + (self.sp & 0x0F) as u8) >= 0x10 {
-                            self.set_h_to(true);
+                        else {
+                            self.set_c_to(false);
                         }
-                        //half borrow. this may be uneeded
-                        if e8 < 0 && ((e8.unsigned_abs() & 0x0F) > (self.sp & 0x0F) as u8){
-                            self.set_h_to(true);
-                        }
-                        self.set_z_to(false);
-                        self.set_h_to(false);
 
-                        self.H = (SP_plus_e8.0 >> 8) as u8;
-                        self.L = (SP_plus_e8.0 & 0xFF) as u8;
+                        if e8 < 0 {
+                            result = self.sp.wrapping_sub(e8_abs as u16);
+                        }
+                        else {
+                            result = self.sp.wrapping_add(e8_abs as u16);
+                        }
+
+                        self.set_z_to(false);
+                        self.set_n_to(false);
+
+                        self.H = (result >> 8) as u8;
+                        self.L = (result & 0xFF) as u8;
                     }
 
                     [Operand::SP, Operand::HL] => {
@@ -1512,11 +1751,13 @@ impl Cpu {
                 match instruction.operands.as_ref().unwrap() {
 
                     [Operand::at_memory_a8, Operand::A] => {
-                        self.databus.borrow_mut().write_memory(self.A, 0xFF00 + a8 as u16);
+                        let address = 0xFF00_u16.wrapping_add(a8 as u16);
+                        self.databus.borrow_mut().write_memory(self.A, address);
                     }
 
                     [Operand::A, Operand::at_memory_a8] => {
-                        self.A = self.databus.borrow().read_memory(0xFF00 + a8 as u16);
+                        let address = 0xFF00_u16.wrapping_add(a8 as u16);
+                        self.A = self.databus.borrow().read_memory(address);
                     }
 
                     _ => {
@@ -1597,7 +1838,8 @@ impl Cpu {
 
                     [Operand::AF, Operand::none] => {
                         self.A = msb;
-                        self.F = lsb;
+                        let masked_lsb = lsb & 0xF0;
+                        self.F = masked_lsb;
                     }
 
                     _ => {
@@ -1609,6 +1851,7 @@ impl Cpu {
             Mnemonic::PREFIX => {
                 let instruction_byte = self.databus.borrow().read_memory(self.pc + 1);
                 total_cycles += self.exec_prefixed_instruction(instruction_byte);
+                jumped = true;
             }
 
             Mnemonic::PUSH => {
@@ -1723,11 +1966,10 @@ impl Cpu {
                 new_pc <<= 8;
                 new_pc |= lsb as u16;
                 self.pc = new_pc;
-                self.IME = true;
+                self.IME_enabled = true;
                 jumped = true;
             }
 
-            //RLA and RLCA, RRA and RRCA implimintations may have to be swapped ??
             Mnemonic::RLA => {
                 let msb =  (self.A & 0x80) >> 7;
                 let c = self.get_c() as u8;
@@ -1778,9 +2020,11 @@ impl Cpu {
                 //https://retrocomputing.stackexchange.com/questions/15116/how-does-the-rst-operation-of-gameboy-sharp-lr35902-work
                 let mut databus_borrow = self.databus.borrow_mut();
                 self.sp -= 1;
-                databus_borrow.write_memory(((self.pc) >> 8) as u8, self.sp);
+                databus_borrow.write_memory(((self.pc.wrapping_add(1)) >> 8) as u8, self.sp);
                 self.sp -= 1;
-                databus_borrow.write_memory(((self.pc) & 0xFF) as u8, self.sp);
+                databus_borrow.write_memory(((self.pc.wrapping_add(1)) & 0xFF) as u8, self.sp);
+
+                jumped = true;
                 match instruction.operands.as_ref().unwrap() {
 
                     [Operand::vec(0x00), Operand::none] => {
@@ -1984,7 +2228,7 @@ impl Cpu {
        }
 
         if !jumped {
-            self.pc += instruction.length as u16;
+            self.pc = self.pc.wrapping_add(instruction.length as u16);
         }
 
         match instruction.cycles {
@@ -2001,16 +2245,17 @@ impl Cpu {
                 }
             }
         }
-
         total_cycles
     }
 
     fn exec_prefixed_instruction(&mut self, instruction_byte: u8) -> u8 {
         let instruction = PREFIXED_INSTRUCTIONS_MAP.get(&instruction_byte).unwrap();
 
+        if crate::DEBUG {
             println!("
             PREFIXED INSTRUCTION:
                 {}", instruction);
+        }
 
         let affected_bit: u8 = match instruction.operands.as_ref().unwrap()[0] {
             Operand::bit_zero => {
@@ -2446,6 +2691,48 @@ impl Cpu {
                 }
             }
 
+            Mnemonic::SRL => {
+                match instruction.operands.as_ref().unwrap() {
+                    [Operand::B, Operand::none] => {
+                        self.B = self.SRL(self.B);
+                    }
+
+                    [Operand::C, Operand::none] => {
+                        self.C = self.SRL(self.C);
+                    }
+
+                    [Operand::D, Operand::none] => {
+                        self.D = self.SRL(self.D);
+                    }
+
+                    [Operand::E, Operand::none] => {
+                        self.E = self.SRL(self.E);
+                    }
+
+                    [Operand::H, Operand::none] => {
+                        self.H = self.SRL(self.H);
+                    }
+
+                    [Operand::L, Operand::none] => {
+                        self.L = self.SRL(self.L);
+                    }
+
+                    [Operand::at_memory_HL, Operand::none] => {
+                        let at_memory_HL = self.databus.borrow().read_memory(self.get_HL());
+                        let result = self.SRL(at_memory_HL);
+                        self.databus.borrow_mut().write_memory(result, self.get_HL());
+                    }
+
+                    [Operand::A, Operand::none] => {
+                        self.A = self.SRL(self.A);
+                    }
+
+                    _ => {
+                        eprintln!("Non existing SRL instruction.");
+                    }
+                }
+            }
+
             Mnemonic::SWAP => {
                 match instruction.operands.as_ref().unwrap() {
 
@@ -2494,7 +2781,7 @@ impl Cpu {
                 eprintln!("Non existing prefixed instruction");
             }
         }
-        self.pc += instruction.length as u16;
+        self.pc = self.pc.wrapping_add(instruction.length as u16);
         if let cycles_length::non_conditional(cycles) = instruction.cycles {
             cycles
         }
