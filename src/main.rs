@@ -9,11 +9,16 @@ mod cpu_instructions;
 mod ppu;
 mod apu;
 mod databus;
+mod boot_rom;
 
-use crate::gameboy::GameBoy;
+use std::env;
+use std::fs::metadata;
+use std::path::Path;
 
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
+
+use crate::gameboy::GameBoy;
 
 pub const DEBUG: bool = false;
 
@@ -31,6 +36,22 @@ pub const SELECT: u8 = 6;
 pub const START: u8  = 7;
 
 fn main() {
+    let args: Vec<String> = env::args().collect();
+
+    if args.len() != 2 {
+        panic!("Correct usage: gameooy <game rom path>")
+    }
+    
+    if !Path::new(&args[1]).exists() {
+        panic!("Non existing faile path.");
+    }
+
+    let file_metadata = metadata(Path::new(&args[1])).unwrap();
+
+    if file_metadata.is_dir() {
+        panic!("Provided file is a directory.");
+    }
+
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let window = video_subsystem.window("GameOoy", SCREEN_WIDTH * SCREEN_SCALE, SCREEN_HEIGHT * SCREEN_SCALE)
@@ -40,9 +61,9 @@ fn main() {
     let mut canvas = window.into_canvas().build().unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
 
-    let mut gameboy = GameBoy::new(&mut canvas);
+    let mut gameboy = GameBoy::new(&mut canvas, args[1].clone());
     gameboy.load_rom();
-    gameboy.powerup_sequence();
+    gameboy.load_boot_rom();
 
     let mut running: bool = true;
 

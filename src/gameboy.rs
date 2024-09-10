@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::path::Path;
 use std::rc::Rc;
 
 use sdl2::render::Canvas;
@@ -20,6 +21,8 @@ const IF_ADDRESS:   u16 = 0xFF0F;
 
 
 pub struct GameBoy<'a>{
+    game_rom_path: String,
+
     cycles_this_frame: u32,
 
     divide_counter: u32,
@@ -48,10 +51,12 @@ pub struct GameBoy<'a>{
 }
 
 impl<'a> GameBoy<'a> {
-    pub fn new(canvas: &mut Canvas<Window>) -> GameBoy {
+    pub fn new(canvas: &mut Canvas<Window>, game_rom_path: String) -> GameBoy {
         let joypad_state = 0xFF;
         let databus: Rc<RefCell<DataBus>> = Rc::new(RefCell::new(DataBus::new()));
         GameBoy {
+            game_rom_path,
+
             cycles_this_frame: 0,
 
             divide_counter: 0,
@@ -205,17 +210,14 @@ impl<'a> GameBoy<'a> {
         }
     }
 
-    pub fn powerup_sequence(&mut self) {
-        let file = std::fs::read("../roms/DMG_ROM.bin").unwrap();
-
-        for (index, byte) in file.iter().enumerate() {
+    pub fn load_boot_rom(&mut self) {
+        for (index, byte) in crate::boot_rom::BOOT_ROM.iter().enumerate() {
             self.databus.borrow_mut().load_boot_rom(index, *byte);
         }
-
     }
 
     fn overwrite_boot_rom(&mut self) {
-        let file = std::fs::read("../roms/Tetris (World) (Rev A).gb").unwrap();
+        let file = std::fs::read(Path::new(&self.game_rom_path)).unwrap();
 
         for (index, byte) in file.iter().enumerate() {
             if index == 0x0100 {
@@ -226,7 +228,7 @@ impl<'a> GameBoy<'a> {
     }
 
     pub fn load_rom(&mut self) {
-        let file = std::fs::read("../roms/Tetris (World) (Rev A).gb").unwrap();
+        let file = std::fs::read(Path::new(&self.game_rom_path)).unwrap();
         let cartridge_type = file.get(0x0147).unwrap();
 
         let rom_banks = file.get(0x0148).unwrap();
