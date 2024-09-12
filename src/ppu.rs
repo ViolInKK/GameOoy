@@ -7,7 +7,6 @@ use crate::{databus::DataBus, SCREEN_SCALE};
 pub struct Ppu <'a> {
     colors: [Color; 4],
 
-    x_position_counter: u8,
     current_line_cycles: u16,
 
     canvas: &'a mut Canvas<Window>,
@@ -26,7 +25,6 @@ impl<'a> Ppu<'a> {
                      Color::RGB(0x10, 0x10, 0x18),
             ],
 
-            x_position_counter: 0,
             current_line_cycles: 456,
 
             canvas,

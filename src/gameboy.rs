@@ -7,7 +7,6 @@ use sdl2::video::Window;
 
 use crate::cpu::Cpu;
 use crate::ppu::Ppu;
-use crate::apu::Apu;
 use crate::databus::DataBus;
 
 const CPU_FREQUENCY: u32 = 4_213_440;
@@ -46,7 +45,6 @@ pub struct GameBoy<'a>{
 
     cpu: Cpu,
     pub ppu: Ppu<'a>,
-    apu: Apu,
     databus: Rc<RefCell<DataBus>>,
 }
 
@@ -68,7 +66,6 @@ impl<'a> GameBoy<'a> {
             databus: Rc::clone(&databus),
             cpu: Cpu::new(Rc::clone(&databus)),
             ppu: Ppu::new(Rc::clone(&databus), canvas),
-            apu: Apu::new(),
         }
     }
 

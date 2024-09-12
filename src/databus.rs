@@ -1,5 +1,4 @@
 pub struct DataBus{
-    timer_cycles_counter: u32,
 
     pub memory: [u8; 65536],
     pub cartridge_rom: Vec<u8>,
@@ -56,8 +55,6 @@ impl DataBus {
         memory[0xFF47] = 0xFC;
 
         DataBus {
-            timer_cycles_counter: 0,
-
             memory,
             cartridge_rom,
             cartridge_ram,
@@ -92,10 +89,6 @@ impl DataBus {
 
     pub fn increment_div_timer(&mut self) {
         self.memory[0xFF04] = self.memory[0xFF04].wrapping_add(1);
-    }
-
-    pub fn sync_joypad_states(&mut self, joypad_state: u8) {
-        self.joypad_state = joypad_state;
     }
 
     pub fn read_memory(&self, addr: u16) -> u8{

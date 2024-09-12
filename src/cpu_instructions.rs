@@ -50,13 +50,6 @@ pub enum Mnemonic {
     XOR,
 }
 
-pub enum ConditionCode {
-    Z,
-    NZ,
-    C,
-    NC,
-    NCC,
-}
 
 #[derive(Debug)]
 pub enum Operand {
@@ -87,13 +80,10 @@ pub enum Operand {
     n16,
     a16,
     e8,
-    u3,
 
     Z,
     NZ,
-    CY,
     NCY,
-    NCC,
 
     vec(u8),
 
