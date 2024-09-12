@@ -27,7 +27,7 @@ This project was made for the sake of learning emulation and all the concepts th
 
 # Refs. Great GameBoy emulation resources
 
-Here are main resources I used whilst developing this emulator:
+**Here are main resources I used whilst developing this emulator:**
 
 * [Pan Docs](https://gbdev.io/pandocs/About.html) - Main GB emulation resource, has everything you need to know.
 
@@ -45,7 +45,7 @@ Here are main resources I used whilst developing this emulator:
 
 * [A Look At Game Boy Bootstrap](https://realboyemulator.wordpress.com/2013/01/03/a-look-at-the-game-boy-bootstrap-let-the-fun-begin/) - GB boot process explained in all details.
 
-Tools I used for debugging:
+**Tools I used for debugging:**
 
 * [Emulicious](https://emulicious.net/) - Emulator with great debugging tools.
 
