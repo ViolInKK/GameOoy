@@ -4,9 +4,9 @@ Rust GameBoy emulator using SDL2.
 
 This project was made for the sake of learning emulation and all the concepts that come with it, and rust. It wasn't made with idea of deliviring it to end users but rather to get working prototype as fast as possible, so its pretty basic in it's implementation and doesnt have much. But if you stumbled upon this repo trying to achieve somthing similar - feel free to poke around and check out some of the resources I left at the end.
 <div display="flex"> 
-  <img src="https://github.com/ViolInKK/GameOoy/blob/main/preview%20images/tetris_title.png" width="300" height="300" />
-  <img src="https://github.com/ViolInKK/GameOoy/blob/main/preview%20images/tetris.png" width="300" height="300" />
-  <img src="https://github.com/ViolInKK/GameOoy/blob/main/preview%20images/tetris_end.png" width="300" height="300" />
+  <img src="https://github.com/ViolInKK/GameOoy/blob/main/preview%20images/tetris_title.png" width="250" height="250" />
+  <img src="https://github.com/ViolInKK/GameOoy/blob/main/preview%20images/tetris.png" width="250" height="250" />
+  <img src="https://github.com/ViolInKK/GameOoy/blob/main/preview%20images/tetris_end.png" width="250" height="250" />
 </div>
 
 # Installation
