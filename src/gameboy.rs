@@ -50,7 +50,6 @@ pub struct GameBoy<'a>{
 
 impl<'a> GameBoy<'a> {
     pub fn new(canvas: &mut Canvas<Window>, game_rom_path: String) -> GameBoy {
-        let joypad_state = 0xFF;
         let databus: Rc<RefCell<DataBus>> = Rc::new(RefCell::new(DataBus::new()));
         GameBoy {
             game_rom_path,
@@ -61,7 +60,7 @@ impl<'a> GameBoy<'a> {
             tima_counter: 0,
             clock_frequency: 256,
 
-            joypad_state,
+            joypad_state: 0xFF,
 
             databus: Rc::clone(&databus),
             cpu: Cpu::new(Rc::clone(&databus)),

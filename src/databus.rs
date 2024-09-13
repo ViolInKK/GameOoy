@@ -114,19 +114,20 @@ impl DataBus {
             }
 
             0xFF00 => {
-                if ((self.memory[addr as usize] >> 4) & 0x03) == 0 {
+                if ((self.memory[addr as usize] >> 4) & 0x03) == 3 {
                     0x0F
                 }
                 else {
                     let mut res = self.memory[addr as usize];
                     if ((self.memory[addr as usize] >> 4) & 0x01) == 0 {
-                        let buttons_joypad = (self.joypad_state >> 4) | 0xF0;
-                        res &= buttons_joypad;
+                        let dpad_joypad = self.joypad_state & 0xF;
+                        res &= 0x30;
+                        res |= dpad_joypad;
                     }
-
                     else if ((self.memory[addr as usize] >> 5) & 0x01) == 0 {
-                        let dpad_joypad = (self.joypad_state & 0xF) | 0xF0;
-                        res = dpad_joypad;
+                        let buttons_joypad = self.joypad_state >> 4;
+                        res &= 0x30;
+                        res |= buttons_joypad;
                     }
 
                     res
