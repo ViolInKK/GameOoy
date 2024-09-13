@@ -33,10 +33,6 @@ impl<'a> Ppu<'a> {
         }
     }
 
-    fn draw_rect(&mut self, x: i32, y: i32) {
-        let _ = self.canvas.fill_rect(Rect::new(x * SCREEN_SCALE as i32,y * SCREEN_SCALE as i32 , SCREEN_SCALE, SCREEN_SCALE));
-    }
-
     fn updated_STAT(&mut self) {
         let STAT: u8 = self.databus.borrow().read_memory(0xFF41);
         let LCDC: u8 = self.databus.borrow().read_memory(0xFF40);
@@ -117,7 +113,6 @@ impl<'a> Ppu<'a> {
 
         if (((LCDC >> 5) & 0x01) == 1) && (WY <= LY) {
             using_window = true;
-
         }
 
         if ((LCDC >> 4) & 0x01) == 1 {
@@ -148,7 +143,7 @@ impl<'a> Ppu<'a> {
         let tile_row: u16;
 
         if !using_window {
-            tile_row = 32 * (((LY as u16 + SCY as u16) as u16 & 0xFF) / 8);
+            tile_row = 32 * (((LY as u16 + SCY as u16) & 0xFF) / 8);
         }
         else {
             tile_row = 32 * (((LY - WY) as u16 & 0xFF) / 8);
@@ -179,8 +174,8 @@ impl<'a> Ppu<'a> {
             }
 
             let line = ((SCY as u16 + LY as u16) % 8) * 2;
-            let data1 = databus_borrow.read_memory(tile_location + line as u16);
-            let data2 = databus_borrow.read_memory(tile_location + line as u16 + 1);
+            let data1 = databus_borrow.read_memory(tile_location + line);
+            let data2 = databus_borrow.read_memory(tile_location + line + 1);
 
             let mut colour_bit: i8 = ((pixel + SCX) % 8).try_into().unwrap();
             colour_bit -= 7;
@@ -195,8 +190,12 @@ impl<'a> Ppu<'a> {
     }
 
     fn render_sprites(&mut self) {
-        let mut use8x16: bool = false;
         let databus_borrow = self.databus.borrow_mut();
+        let mut use8x16: bool = false;
+
+        if ((databus_borrow.read_memory(0xFF40) >> 2) & 0x01) == 1 {
+            use8x16 = true;
+        }
 
         for sprite in 0..40_u16 {
             let index = sprite*4;
@@ -205,10 +204,13 @@ impl<'a> Ppu<'a> {
             let tile_location = databus_borrow.read_memory(0xFE00 + index + 2);
             let tile_attributes = databus_borrow.read_memory(0xFE00 + index + 3);
 
+            let mut ysize: u8 = 8;
             let xFlip = ((tile_attributes >> 5) & 0x01) == 1;
             let yFlip = ((tile_attributes >> 6) & 0x01) == 1;
+            if use8x16 {
+                ysize = 16;
+            }
 
-            let ysize = 8;
             let LY = databus_borrow.read_memory(0xFF44);
 
             if (LY >= yPos) && (LY < (yPos + ysize)) {
@@ -223,7 +225,7 @@ impl<'a> Ppu<'a> {
                 let data1 = databus_borrow.read_memory(data_address);
                 let data2 = databus_borrow.read_memory(data_address + 1);
 
-                for pixel in (0..7_i8).rev() {
+                for pixel in (0..8_i8).rev() {
                     let mut colour_bit = pixel;
                     if xFlip {
                         colour_bit -= 7;
@@ -299,15 +301,5 @@ impl<'a> Ppu<'a> {
 
     pub fn present(&mut self) {
         self.canvas.present();
-    }
-
-    fn get_tile_data_low(&self, sprite_id: u8) -> u8 {
-        let LY = self.databus.borrow().read_memory(0xFF44);
-        self.databus.borrow().read_memory(0x8000 + (sprite_id * 16) as u16 + (2 * (LY % 8)) as u16)
-    }
-
-    fn get_tile_data_high(&self, sprite_id: u8) -> u8 {
-        let LY = self.databus.borrow().read_memory(0xFF44);
-        self.databus.borrow().read_memory(0x8001 + (sprite_id * 16) as u16 + (2 * (LY % 8)) as u16)
     }
 }

@@ -11,6 +11,8 @@ This project was made for the sake of learning emulation and all the concepts th
 
 # Installation
 
+# Build from sources
+
 ## Requirements
 
 * **git**
@@ -21,9 +23,10 @@ This project was made for the sake of learning emulation and all the concepts th
 
 # TODO
 
-* Add audio functionality
-* Saving states
-* Proper code documentation
+* Add audio functionality.
+* Saving states.
+* More accurate PPU implementation.
+* Proper code documentation.
 
 # Refs. Great GameBoy emulation resources
 
