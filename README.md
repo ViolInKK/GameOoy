@@ -39,7 +39,7 @@ This project was made for the sake of learning emulation and all the concepts th
 
 * [Codeslinger Gameboy](http://www.codeslinger.co.uk/pages/projects/gameboy/beginning.html) - GB emulator blog with code examples. Pretty outdated but still good to understand how some parts work.
 
-* [Lazy Stripes](https://blog.tigris.fr/2019/09/15/writing-an-emulator-the-first-pixel/) - GB emulator blow with code examples. This one is up-to-date.
+* [Lazy Stripes](https://blog.tigris.fr/2019/09/15/writing-an-emulator-the-first-pixel/) - GB emulator blog with code examples. This one is up-to-date.
 
 * [The Ultimate Game Boy Talk](https://www.youtube.com/watch?v=HyzD8pNlpwI&ab_channel=media.ccc.de) - Great GB talk.
 
