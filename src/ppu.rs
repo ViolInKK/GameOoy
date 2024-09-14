@@ -131,23 +131,20 @@ impl<'a> Ppu<'a> {
                 background_map = 0x9800;
             }
         }
-        else {
-            if ((LCDC >> 6) & 0x01) == 1 {
-                background_map = 0x9C00;
-            }
-            else {
-                background_map = 0x9800;
-            }
-        }
 
-        let tile_row: u16;
-
-        if !using_window {
-            tile_row = 32 * (((LY as u16 + SCY as u16) & 0xFF) / 8);
+        else if ((LCDC >> 6) & 0x01) == 1 {
+            background_map = 0x9C00;
         }
         else {
-            tile_row = 32 * (((LY - WY) as u16 & 0xFF) / 8);
+            background_map = 0x9800;
         }
+
+        let tile_row: u16 = if !using_window {
+            32 * (((LY as u16 + SCY as u16) & 0xFF) / 8)
+        } 
+        else {
+            32 * (((LY - WY) as u16 & 0xFF) / 8)
+        };
 
         for pixel in 0..160 {
             let mut tile_col = ((SCX + pixel) as u16 / 8) & 0x1f;
@@ -164,13 +161,11 @@ impl<'a> Ppu<'a> {
             if unsig {
                 tile_location = tile_data + (tile_num as u16 * 16);
             }
+            else if (tile_num as i8) < 0 {
+                tile_location = tile_data - (tile_num as u16 * 16);
+            }
             else {
-                if (tile_num as i8) < 0 {
-                    tile_location = tile_data - (tile_num as u16 * 16);
-                }
-                else {
-                    tile_location = tile_data + (tile_num as u16 * 16);
-                }
+                tile_location = tile_data + (tile_num as u16 * 16);
             }
 
             let line = ((SCY as u16 + LY as u16) % 8) * 2;

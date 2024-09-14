@@ -1702,8 +1702,6 @@ impl Cpu {
                         let u16 = (e8 as u16) & 0x00FF;
                         let e8_abs = e8.unsigned_abs();
 
-                        let result: u16;
-
                         if ((self.sp & 0x0F) + (u16 & 0x0F)) > 0x0F {
                             self.set_h_to(true);
                         }
@@ -1718,12 +1716,11 @@ impl Cpu {
                             self.set_c_to(false);
                         }
 
-                        if e8 < 0 {
-                            result = self.sp.wrapping_sub(e8_abs as u16);
-                        }
-                        else {
-                            result = self.sp.wrapping_add(e8_abs as u16);
-                        }
+                        let result: u16 = if e8 < 0 {
+                            self.sp.wrapping_sub(e8_abs as u16)
+                        } else {
+                            self.sp.wrapping_add(e8_abs as u16)
+                        };
 
                         self.set_z_to(false);
                         self.set_n_to(false);
