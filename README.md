@@ -36,6 +36,8 @@ This project was made for the sake of learning emulation and all the concepts th
 
 * [gbdev optable](https://gbdev.io/gb-opcodes/optables/) - Table of CPU instructions.
 
+* [gbdev](https://gbdev.io/) - Havent really used it but looks promising.
+
 * [RGBDS CPU instructions](https://rgbds.gbdev.io/docs/v0.8.0/gbz80.7) - CPU instructions explanations.
 
 * [GBEDG](https://hacktix.github.io/GBEDG/ppu/) - Great blog about how GB PPU works.
