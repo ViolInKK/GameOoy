@@ -69,20 +69,20 @@ impl<'a> GameBoy<'a> {
     }
 
     pub fn update(&mut self) {
-        let MAXCYCLES: u32 = CPU_FREQUENCY / FPS; // 70224 cpu cycles per frame
+        let MAXCYCLES: u32 = CPU_FREQUENCY / FPS; 
+        // 70224 cpu cycles per frame.
         while self.cycles_this_frame < MAXCYCLES {
-            if !self.cpu.is_halted {
-                let cycles = self.exec_next_instruction() as u32;
-                self.cycles_this_frame += cycles;
-                self.update_timers(cycles);
-                self.ppu.update_graphics(cycles);
-                self.do_interrupts();
-                if self.cpu.pc == 0x0100 {
-                    self.overwrite_boot_rom();
-                }
-            }
-            else {
-                self.do_interrupts();
+            let cycles = self.exec_next_instruction() as u32;
+            self.cycles_this_frame += cycles;
+            self.update_timers(cycles);
+            self.ppu.update_graphics(cycles);
+            self.do_interrupts();
+            /*
+               0x0000 - 0x0099 initially has boot rom.
+               0x0100 - 0x0103 is entry point of game rom. Once we get there we need to overwrite boot rom with game data.
+               */
+            if self.cpu.pc == 0x0100 {
+                self.overwrite_boot_rom();
             }
         }
         self.ppu.present();
@@ -225,8 +225,8 @@ impl<'a> GameBoy<'a> {
 
     pub fn load_rom(&mut self) {
         let file = std::fs::read(Path::new(&self.game_rom_path)).unwrap();
-        let cartridge_type = file.get(0x0147).unwrap();
 
+        let cartridge_type = file.get(0x0147).unwrap();
         let rom_banks = file.get(0x0148).unwrap();
         let ram_banks = &0x02;
 
@@ -246,7 +246,7 @@ impl<'a> GameBoy<'a> {
             }
 
             _ => {
-                eprintln!("Not supported cartirdge type.");
+                panic!("Not supported cartirdge type.");
             }
         }
 

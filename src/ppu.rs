@@ -81,6 +81,7 @@ impl<'a> Ppu<'a> {
         }
 
         if LY == LYC {
+            updated_STAT |= 1 << 2;
             if ((STAT >> 6) & 0x01) == 1 {
                 let IF = self.databus.borrow().read_memory(0xFF0F);
                 let updated_IF = IF | 1;
@@ -112,7 +113,7 @@ impl<'a> Ppu<'a> {
         let mut using_window: bool = false;
 
         if (((LCDC >> 5) & 0x01) == 1) && (WY <= LY) {
-            using_window = true;
+            using_window = true; 
         }
 
         if ((LCDC >> 4) & 0x01) == 1 {
@@ -131,7 +132,6 @@ impl<'a> Ppu<'a> {
                 background_map = 0x9800;
             }
         }
-
         else if ((LCDC >> 6) & 0x01) == 1 {
             background_map = 0x9C00;
         }
@@ -143,11 +143,11 @@ impl<'a> Ppu<'a> {
             32 * (((LY as u16 + SCY as u16) & 0xFF) / 8)
         } 
         else {
-            32 * (((LY - WY) as u16 & 0xFF) / 8)
+            32 * (((LY as u16 - WY as u16) & 0xFF) / 8)
         };
 
         for pixel in 0..160 {
-            let mut tile_col = ((SCX + pixel) as u16 / 8) & 0x1f;
+            let mut tile_col = ((SCX.wrapping_add(pixel)) as u16 / 8);
 
             if using_window && (pixel >= WX) {
                 tile_col = ((pixel - WX) as u16 / 8) & 0x1f;
@@ -156,23 +156,26 @@ impl<'a> Ppu<'a> {
             let tile_address: u16 = background_map + tile_row + tile_col;
             let tile_num = databus_borrow.read_memory(tile_address);
 
-            let tile_location: u16;
+            let mut tile_location: u16 = 0;
 
             if unsig {
                 tile_location = tile_data + (tile_num as u16 * 16);
             }
-            else if (tile_num as i8) < 0 {
-                tile_location = tile_data - (tile_num as u16 * 16);
-            }
             else {
-                tile_location = tile_data + (tile_num as u16 * 16);
+                if (tile_num >= 0) && (tile_num < 128){
+                    tile_location = 0x9000 + (tile_num as u16 * 16);
+                }
+                else {
+                    tile_location = 0x8800 + (((tile_num as u16) - 128) * 16);
+                }
+                //tile_location = tile_data + ((tile_num as u16).wrapping_add(128).wrapping_mul(16));
             }
 
             let line = ((SCY as u16 + LY as u16) % 8) * 2;
             let data1 = databus_borrow.read_memory(tile_location + line);
             let data2 = databus_borrow.read_memory(tile_location + line + 1);
 
-            let mut colour_bit: i8 = ((pixel + SCX) % 8).try_into().unwrap();
+            let mut colour_bit: i8 = ((SCX.wrapping_add(pixel)) % 8).try_into().unwrap();
             colour_bit -= 7;
             colour_bit *= -1;
 
@@ -209,18 +212,20 @@ impl<'a> Ppu<'a> {
             let LY = databus_borrow.read_memory(0xFF44);
 
             if (LY >= yPos) && (LY < (yPos + ysize)) {
-                let mut line: i16 = (LY as i16 - yPos as i16) * 2;
-
+                let mut line: u16 = (LY as u16).wrapping_sub(yPos as u16);
                 if yFlip {
-                    line = line.wrapping_sub(ysize as i16);
-                    line *= -1;
+                    line = (7_u16).wrapping_sub(line);
                 }
 
-                let data_address: u16 = (0x8000 + (tile_location as u16 * 16)) + line as u16;
+                line = line.wrapping_mul(2);
+
+                let data_address: u16 = (0x8000 + (tile_location as u16 * 16)).wrapping_add(line);
                 let data1 = databus_borrow.read_memory(data_address);
                 let data2 = databus_borrow.read_memory(data_address + 1);
 
                 for pixel in (0..8_i8).rev() {
+
+                    //TODO: Add backgorund priority.
                     let mut colour_bit = pixel;
                     if xFlip {
                         colour_bit -= 7;
@@ -236,7 +241,7 @@ impl<'a> Ppu<'a> {
                         continue;
                     }
 
-                    let xPix = (7 - pixel as u8) + xPos;
+                    let xPix = (7 - pixel as u8).wrapping_add(xPos);
 
                     self.canvas.set_draw_color(self.colors[final_colour as usize]);
                     let _ = self.canvas.fill_rect(Rect::new(xPix as i32 * SCREEN_SCALE as i32,LY as i32 * SCREEN_SCALE as i32 , SCREEN_SCALE, SCREEN_SCALE));
@@ -260,8 +265,9 @@ impl<'a> Ppu<'a> {
     pub fn update_graphics(&mut self, cycles: u32) {
         //Update status.
         self.updated_STAT();
-        let LCDC: u8 = self.databus.borrow().read_memory(0xFF40);
+
         //If LCD disabled return.
+        let LCDC: u8 = self.databus.borrow().read_memory(0xFF40);
         if ((LCDC >> 7) & 0x01) == 0 {
             return;
         }
@@ -286,11 +292,10 @@ impl<'a> Ppu<'a> {
                 return;
             }
 
-
-            self.current_line_cycles = 0;
-            self.databus.borrow_mut().write_memory(LY + 1, 0xFF44);
             //Increment LY. Check if needs to be resetted a.k.a. if LY > 153.
             //Reset self cureent line.
+            self.current_line_cycles = 0;
+            self.databus.borrow_mut().write_memory(LY + 1, 0xFF44);
         }
     }
 

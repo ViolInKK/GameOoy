@@ -25,10 +25,10 @@ pub const SCREEN_WIDTH: u32  = 160;
 pub const SCREEN_HEIGHT: u32 = 144;
 pub const SCREEN_SCALE: u32  = 5;
 
-pub const UP: u8     = 2;
 pub const RIGHT: u8  = 0;
-pub const DOWN: u8   = 3;
 pub const LEFT: u8   = 1;
+pub const UP: u8     = 2;
+pub const DOWN: u8   = 3;
 pub const A: u8      = 4;
 pub const B: u8      = 5;
 pub const SELECT: u8 = 6;

@@ -21,38 +21,9 @@ pub struct DataBus{
 
 impl DataBus {
     pub fn new() -> DataBus {
-        let mut memory = [0; 65536];
+        let memory = [0; 65536];
         let cartridge_rom = Vec::new();
         let cartridge_ram = Vec::new();
-
-        //hardware registers initial values
-        memory[0xFF00] = 0xCF;
-        memory[0xFF02] = 0x7E;
-        memory[0xFF06] = 0xAB;
-        memory[0xFF07] = 0xFF;
-        memory[0xFF0F] = 0xE1;
-        memory[0xFF10] = 0x80;
-        memory[0xFF11] = 0xBF;
-        memory[0xFF12] = 0xF3;
-        memory[0xFF13] = 0xF3;
-        memory[0xFF14] = 0xBF;
-        memory[0xFF16] = 0x3F;
-        memory[0xFF18] = 0xFF;
-        memory[0xFF19] = 0xBF;
-        memory[0xFF1A] = 0x7F;
-        memory[0xFF1B] = 0xFF;
-        memory[0xFF1C] = 0x9F;
-        memory[0xFF1D] = 0xFF;
-        memory[0xFF1E] = 0xBF;
-        memory[0xFF20] = 0xFF;
-        memory[0xFF23] = 0xBF;
-        memory[0xFF24] = 0x77;
-        memory[0xFF25] = 0xF3;
-        memory[0xFF26] = 0xF1;
-        memory[0xFF40] = 0x91;
-        memory[0xFF41] = 0x85;
-        memory[0xFF46] = 0xFF;
-        memory[0xFF47] = 0xFC;
 
         DataBus {
             memory,
@@ -80,7 +51,7 @@ impl DataBus {
     }
 
     pub fn load_rom(&mut self, index: usize, data: u8) {
-        if index >= 0x8100 {
+        if index >= 0x8000 {
             self.cartridge_rom[index - 0x8000] = data;
             return;
         }
@@ -98,8 +69,8 @@ impl DataBus {
                 if self.current_ROM_bank == 1 {
                     return self.memory[addr as usize]
                 }
-                let new_address = (addr - 0x4000) + ((self.current_ROM_bank - 2) as u16 * 0x4000);
-                    self.cartridge_rom[new_address as usize]
+                let new_address: u32 = (addr as u32 - 0x4000) + ((self.current_ROM_bank - 2) as u32 * 0x4000);
+                self.cartridge_rom[new_address as usize]
                 }
 
             0xA000..=0xBFFF => {
@@ -189,7 +160,7 @@ impl DataBus {
 
             0x6000..=0x7FFF => {
                 //banking mode select
-                if self.MBC1 || self.MBC2 {
+                if self.MBC1 {
                     self.banking_mode = data & 0x01;
                 }
             }
