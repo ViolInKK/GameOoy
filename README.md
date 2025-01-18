@@ -23,8 +23,7 @@ $ cargo run <game rom>
 
 # TODO
 
-**This one is actually better be done**
-* Properly implement delta time
+* Properly implement delta time (**This one is actually better be done**)
 
 * Add audio functionality.
 * Saving states.
