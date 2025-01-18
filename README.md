@@ -9,23 +9,27 @@ This project was made for the sake of learning emulation and all the concepts th
   <img src="https://github.com/ViolInKK/GameOoy/blob/main/preview%20images/tetris_end.png" width="250" height="250" />
 </div>
 
-# Installation
-
-# Build from sources
-
-## Requirements
+# Quick Start
 
 * **git**
 * **cargo** `>= 1.81.0`
 * **SDL2** `>= 2.0.26`
 
-# Usage
+```
+$ cargo run <game rom>
+```
+
+**I dont recommend running emulator in --release mode now since I havent implemented delta time properly**
 
 # TODO
+
+**This one is actually better be done**
+* Properly implement delta time
 
 * Add audio functionality.
 * Saving states.
 * More accurate PPU implementation.
+    * Make pixel colors not hard coded but go through gameboy intended color mapping
 * Proper code documentation.
 
 # Refs. Great GameBoy emulation resources
